@@ -85,3 +85,7 @@ Remaining release acceptance: normal-user microphone and both-source call captur
 The installer and update metadata are local only. Source and the unsigned preview prerelease target `sudheer-050/dotflow` (the verified GitHub login). A GitHub profile is not a Windows signing certificate. Supply/configure a real certificate and exact repository before public signed delivery. The installed 0.5.0 app was not overwritten by this build.
 
 0.6.1 additional evidence: native 16-stream shutdown and continuous two-source silence checks passed; all eight synthetic-noise/gate combinations produced empty text; Windows media seek/speed/pause/close passed. Managed-session device capture failed with UnauthorizedAccessException and keyboard insertion was blocked. These are recorded external acceptance limits, not passing tests. Source-publication snapshots exclude output, recordings, caches and local preferences.
+
+## User-reported manual checks (2026-10-21)
+
+The owner reported on their own desktop that a meeting recording worked and that dictation works in a terminal and a browser. These are self-reported results: no build details, device configuration or accuracy measurements were recorded, so the related hardware/cross-app items above stay open until checked in detail.
