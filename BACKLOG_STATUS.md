@@ -88,4 +88,4 @@ The installer and update metadata are local only. Source and the unsigned previe
 
 ## User-reported manual checks (2026-10-21)
 
-The owner reported on their own desktop that a meeting recording worked and that dictation works in a terminal and a browser. These are self-reported results: no build details, device configuration or accuracy measurements were recorded, so the related hardware/cross-app items above stay open until checked in detail.
+The owner reported that a meeting recording and dictation into a terminal and a browser worked. The installed app at that time was version 0.5.0 (verified: the installed executable reports 0.5.0.0), not 0.6.1, so these results do not count as 0.6.1 acceptance. Repeat them after installing 0.6.1.
