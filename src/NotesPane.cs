@@ -1,0 +1,314 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.Linq;
+using System.Windows.Forms;
+
+namespace LocalDictation
+{
+    sealed partial class NotesPane : UserControl
+    {
+        readonly NoteStore store;
+        Config config;
+        readonly List<NoteDocument> documents;
+        readonly TextBox title = Field("Note title"), name = Field("Your name"), written = Field("Written notes"), transcript = Field("Meeting transcript");
+        readonly ComboBox mode = Choice(), microphone = Choice(), output = Choice();
+        readonly TabControl tabs = new TabControl { Dock = DockStyle.Fill };
+        readonly ListBox history = new ListBox { Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, IntegralHeight = false };
+        readonly HubButton record = new HubButton { Text = "Start note", Primary = true, Dock = DockStyle.Fill };
+        readonly HubButton retry = new HubButton { Text = "Retry transcription", Dock = DockStyle.Fill };
+        readonly Label status = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft }, participants = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
+        readonly System.Windows.Forms.Timer pulse = new System.Windows.Forms.Timer { Interval = 500 };
+        readonly System.Windows.Forms.Timer saveTimer = new System.Windows.Forms.Timer { Interval = 600 };
+        readonly ProgressBar micMeter = new ProgressBar { Dock = DockStyle.Fill, Maximum = 100 }, outputMeter = new ProgressBar { Dock = DockStyle.Fill, Maximum = 100 };
+        NotesSession session;
+        NoteDocument selected;
+        bool populating;
+        string uiError = "";
+        string reportedIssue = "";
+        public Action<string> IssueReported;
+        readonly Label noteTitle = new Label { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 17), AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
+        readonly Label noteDetails = new Label { Dock = DockStyle.Fill, ForeColor = Color.FromArgb(115, 116, 118), TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
+        readonly HubButton devicesButton = new HubButton { Text = "Devices", Dock = DockStyle.Fill };
+        readonly HubButton editDetails = new HubButton { Text = "Edit details", Dock = DockStyle.Fill };
+        public Action<string> SourceChanged;
+        string preferredSource;
+        public string Source { get { return preferredSource; } }
+        public string Feedback { get { return uiError; } }
+        public NoteDocument Document { get { return selected; } }
+        public NoteStore Store { get { return store; } }
+        public string SessionStatus { get { return Busy && session.Document != null ? session.Document.Status : selected == null ? "Ready" : selected.Status; } }
+        public int SoundLevel { get { return session == null || !Recording ? 0 : Math.Max(session.MicrophoneSound, session.ComputerSound); } }
+        public Func<bool> CanStart;
+        public bool Busy { get { return session != null && session.Busy; } }
+        public bool Recording { get { return session != null && session.Recording; } }
+        public string RecordingMode { get { return session == null || session.Document == null ? "" : session.Document.Mode; } }
+        public double RecordingSeconds { get { return session == null ? 0 : session.ElapsedSeconds; } }
+        static TextBox Field(string accessible) { return new TextBox { Dock = DockStyle.Fill, AccessibleName = accessible, BorderStyle = BorderStyle.FixedSingle }; }
+        static ComboBox Choice() { return new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat }; }
+        static Label Caption(string text) { return new Label { UseCompatibleTextRendering = true, Text = text, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.FromArgb(115, 116, 118) }; }
+        static TableLayoutPanel Grid(int columns, int rows)
+        {
+            var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = columns, RowCount = rows, Margin = Padding.Empty, Padding = Padding.Empty, BackColor = Color.White };
+            return panel;
+        }
+        public NotesPane(Config config, NoteStore store = null)
+        {
+            this.config = config; preferredSource = config.NotesSource; this.store = store ?? new NoteStore(); this.store.CleanupDeleted(config.DeletedRetentionDays); documents = this.store.List();
+            BackColor = Color.FromArgb(250, 249, 246); Font = new Font("Segoe UI", 10); AutoScaleMode = AutoScaleMode.None;
+            var layout = new SplitContainer { Size = new Size(760, 600), Dock = DockStyle.Fill, Panel1MinSize = 140, Panel2MinSize = 300, SplitterDistance = 190, BackColor = BackColor }; Controls.Add(layout);
+            var library = Grid(1, 4); library.BackColor = BackColor; library.Padding = new Padding(0, 0, 16, 0); library.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            library.RowStyles.Add(new RowStyle(SizeType.Absolute, 28)); library.RowStyles.Add(new RowStyle(SizeType.Absolute, 34)); library.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); library.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            library.Controls.Add(Caption("Search saved notes"), 0, 0);
+            var search = Field("Search saved notes"); library.Controls.Add(search, 0, 1); library.Controls.Add(history, 0, 2);
+            var fresh = new HubButton { Text = "+ Written note", Dock = DockStyle.Fill }; library.Controls.Add(fresh, 0, 3); layout.Panel1.Controls.Add(library);
+            var sheet = new Surface { Dock = DockStyle.Fill, Padding = new Padding(18), Fill = Color.White }; layout.Panel2.Controls.Add(sheet);
+            var workspace = Grid(1, 6); workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 48)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 30)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 44)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 30)); workspace.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 40)); sheet.Controls.Add(workspace);
+            var heading = Grid(2, 1); heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 106)); heading.Controls.Add(noteTitle, 0, 0); heading.Controls.Add(editDetails, 1, 0); workspace.Controls.Add(heading, 0, 0); workspace.Controls.Add(noteDetails, 0, 1);
+            var transport = Grid(4, 1); transport.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100)); transport.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); transport.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70)); transport.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
+            transport.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            transport.Controls.Add(record, 0, 0); var nextCapture = new Panel { Dock = DockStyle.Fill }; nextCapture.Controls.Add(mode); mode.Dock = DockStyle.Bottom; nextCapture.Controls.Add(new Label { Text = "Next recording", Dock = DockStyle.Top, Height = 16, Font = new Font("Segoe UI", 7), ForeColor = ThemeColors.Muted }); transport.Controls.Add(nextCapture, 1, 0); var devices = devicesButton; transport.Controls.Add(devices, 2, 0); transport.Controls.Add(pauseNote, 3, 0); workspace.Controls.Add(transport, 0, 2);
+            workspace.Controls.Add(status, 0, 3);
+            var noteTab = new TabPage("My notes"); var transcriptTab = new TabPage("Conversation (read-only)"); tabs.TabPages.Add(noteTab); tabs.TabPages.Add(transcriptTab);
+            written.Multiline = transcript.Multiline = true; written.AcceptsReturn = written.AcceptsTab = true; written.ScrollBars = transcript.ScrollBars = ScrollBars.Vertical; transcript.ReadOnly = true;
+            written.BorderStyle = transcript.BorderStyle = BorderStyle.None; written.BackColor = transcript.BackColor = Color.White;
+            noteTab.Padding = transcriptTab.Padding = new Padding(12); noteTab.Controls.Add(written); transcriptTab.Controls.Add(transcript); workspace.Controls.Add(tabs, 0, 4);
+            var actions = Grid(3, 1); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100)); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
+            var copy = new HubButton { Text = "Copy text", Dock = DockStyle.Fill }; var folder = new HubButton { Text = "Export", Dock = DockStyle.Fill };
+            actions.Controls.Add(copy, 0, 0); actions.Controls.Add(retry, 1, 0); actions.Controls.Add(folder, 2, 0); workspace.Controls.Add(actions, 0, 5);
+            mode.Items.AddRange(new object[] { "My microphone", "Computer audio", "Both sources" }); mode.SelectedIndex = Array.IndexOf(new[] { "Microphone", "Computer", "Both" }, config.NotesSource);
+            devices.Click += (sender, args) => ShowDevices(); editDetails.Click += (sender, args) => EditDetails(); folder.Click += (sender, args) => ShowExportDialog();
+            search.TextChanged += (sender, args) => { libraryQuery = search.Text; Refilter(); };
+            try
+            {
+                microphone.Items.AddRange(CoreAudio.List(false).Cast<object>().ToArray()); output.Items.AddRange(CoreAudio.List(true).Cast<object>().ToArray());
+                microphone.SelectedIndex = 0; output.SelectedIndex = 0;
+                SelectEndpoint(microphone, config.NoteMicrophoneId); SelectEndpoint(output, config.NoteOutputId);
+                for (int i = 1; i < microphone.Items.Count; i++) if (String.IsNullOrEmpty(config.NoteMicrophoneId) && ((AudioEndpoint)microphone.Items[i]).Name.StartsWith(config.Microphone, StringComparison.OrdinalIgnoreCase)) microphone.SelectedIndex = i;
+            }
+            catch (Exception ex) { status.Text = "Audio devices: " + ex.Message; }
+            history.DisplayMember = "Title"; // NoteDocument properties are used by WinForms binding.
+            history.SelectedIndexChanged += (s, e) => { if (!populating) Select(history.SelectedItem as NoteDocument); };
+            foreach (var document in documents) history.Items.Add(document);
+            record.Click += (s, e) => { if (Recording) Stop(); else Start(SelectedMode(), "Note"); };
+            retry.Click += (s, e) => Retry(); fresh.Click += (s, e) => NewWrittenNote();
+            copy.Click += (s, e) => { try { if (selected != null) Clipboard.SetText(tabs.SelectedIndex == 0 ? written.Text : tabs.SelectedIndex == 2 ? excerptText.Text : NoteStore.Transcript(selected)); } catch (Exception ex) { status.Text = ex.Message; } };
+            mode.SelectedIndexChanged += (s, e) => { RefreshState(); if (!populating) { preferredSource = SelectedMode(); if (SourceChanged != null) SourceChanged(preferredSource); } };
+            title.TextChanged += Edited; name.TextChanged += Edited; written.TextChanged += Edited;
+            saveTimer.Tick += (s, e) => { saveTimer.Stop(); SaveEdits(); };
+            pulse.Tick += (s, e) => RefreshState(); pulse.Start();
+            BuildReviewTools(library, workspace, noteTab, transcriptTab, search, copy, folder);
+            Select(null);
+        }
+        string SelectedMode() { return mode.SelectedIndex == 1 ? "Computer" : mode.SelectedIndex == 2 ? "Both" : "Microphone"; }
+        void Edited(object sender, EventArgs e) { if (!populating) { saveTimer.Stop(); saveTimer.Start(); } }
+        void SaveEdits()
+        {
+            if (populating) return;
+            try
+            {
+            if (selected == null)
+            {
+                if (String.IsNullOrWhiteSpace(written.Text)) return;
+                selected = store.Create(title.Text, SelectedMode(), name.Text); selected.Status = "Saved"; selected.Kind = "Note";
+                documents.Insert(0, selected); populating = true; history.Items.Insert(0, selected); history.SelectedItem = selected; populating = false;
+            }
+                lock (selected)
+                {
+                    selected.WrittenNotes = written.Text; NoteMetadata.UpdateTitle(selected);
+                    store.Save(selected); store.SavedName = selected.UserName;
+                }
+                int index = history.Items.IndexOf(selected); if (index >= 0) { populating = true; history.Items[index] = selected; populating = false; }
+            }
+            catch (Exception ex) { uiError = "Could not save note: " + ex.Message; status.Text = uiError; }
+        }
+        void Select(NoteDocument document)
+        {
+            if (populating) return;
+            SaveEdits(); player.Dispose(); playerOpen = false; uiError = ""; selected = document; if (document != null) writingFresh = false; populating = true;
+            title.Text = document == null ? "" : document.Title; name.Text = document == null ? store.SavedName : document.UserName;
+            written.Text = document == null ? "" : document.WrittenNotes; transcript.Text = document == null ? "" : NoteStore.Transcript(document);
+            history.SelectedItem = document; excerptText.Text = document == null ? "" : document.Summary; populating = false; RefreshState();
+        }
+        public void UpdateConfig(Config value) { config = value; preferredSource = value.NotesSource; if (!Busy) { populating = true; mode.SelectedIndex = Array.IndexOf(new[] { "Microphone", "Computer", "Both" }, value.NotesSource); populating = false; } }
+        public void Toggle(string source) { Toggle(source, "Note"); }
+        public void Toggle(string source, string kind)
+        {
+            if (Recording) { Stop(); return; }
+            if (Busy) { status.Text = "Finishing the last transcription. Audio is already saved."; return; }
+            populating = true; mode.SelectedIndex = source == "Computer" ? 1 : source == "Both" ? 2 : 0; populating = false; Start(source, kind);
+        }
+        void Start(string source, string kind)
+        {
+            if (Busy || (CanStart != null && !CanStart())) { status.Text = "Finish the current dictation first."; return; }
+            SaveEdits(); uiError = "";
+            if (microphone.SelectedItem == null && source != "Computer" || output.SelectedItem == null && source != "Microphone") { uiError = "No selected audio device is available."; status.Text = uiError; return; }
+            try
+            {
+                if (session != null) session.Dispose(); session = new NotesSession(store, config); session.Changed = SessionChanged;
+                session.Start("", source, store.SavedName, microphone.SelectedItem == null ? "" : ((AudioEndpoint)microphone.SelectedItem).Id, output.SelectedItem == null ? "" : ((AudioEndpoint)output.SelectedItem).Id);
+                session.Document.Kind = kind;
+                if (session.Document.AutoTitle) session.Document.Title = (kind == "Meeting" ? "Meeting" : "Voice note") + " \u00b7 " + DateTime.Now.ToString("MMM d, HH:mm");
+                store.Save(session.Document); AddSessionDocument(); tabs.SelectedIndex = 1; RefreshState();
+            }
+            catch (Exception ex) { AddSessionDocument(); uiError = ex.Message; RefreshState(); }
+        }
+        void AddSessionDocument()
+        {
+            if (session == null || session.Document == null) return;
+            selected = session.Document;
+            if (!documents.Contains(selected)) { documents.Insert(0, selected); populating = true; history.Items.Insert(0, selected); history.SelectedItem = selected; written.Clear(); title.Text = selected.Title; populating = false; }
+        }
+        void Stop() { if (session != null) { SaveEdits(); session.Stop(); RefreshState(); } }
+        void Retry()
+        {
+            if (selected == null || Busy || (CanStart != null && !CanStart())) return;
+            try { SaveEdits(); if (session != null) session.Dispose(); session = new NotesSession(store, config); session.Changed = SessionChanged; session.Retry(selected); RefreshState(); }
+            catch (Exception ex) { status.Text = ex.Message; }
+        }
+        void SessionChanged()
+        {
+            try { if (IsHandleCreated && !IsDisposed) BeginInvoke((Action)(() =>
+            {
+                if (IsDisposed || selected == null) return;
+                if (session != null && !ReferenceEquals(selected, session.Document)) { RefreshState(); return; }
+                if (!saveTimer.Enabled) { populating = true; name.Text = selected.UserName; title.Text = selected.Title; populating = false; }
+                int selectedIndex = history.Items.IndexOf(selected); if (selectedIndex >= 0) { populating = true; history.Items[selectedIndex] = selected; populating = false; }
+                string value = NoteStore.Transcript(selected);
+                if (transcript.Text != value) { transcript.Text = value; transcript.SelectionStart = transcript.TextLength; transcript.ScrollToCaret(); }
+                RefreshState();
+            })); }
+            catch (InvalidOperationException) { }
+        }
+        void RefreshState()
+        {
+            bool busy = Busy; bool recording = Recording;
+            record.Text = recording ? "Stop & save" : "Start note"; record.Enabled = recording || !busy;
+            mode.Enabled = microphone.Enabled = output.Enabled = !busy; history.Enabled = true;
+            if (!busy) { microphone.Enabled = mode.SelectedIndex != 1; output.Enabled = mode.SelectedIndex != 0; }
+            pauseNote.Enabled = recording; pauseNote.Text = session != null && session.Paused ? "Resume" : "Pause";
+            devicesButton.Enabled = !busy; editDetails.Enabled = selected != null && !Recording;
+            retry.Enabled = !busy && selected != null && selected.Segments.Any(s => !s.Complete || !String.IsNullOrEmpty(s.Error));
+            if (selected != null)
+            {
+                int pending; lock (selected) pending = selected.Segments.Count(s => !s.Complete);
+                status.Text = recording ? (session.Paused ? "Paused " : "Recording ") + TimeSpan.FromSeconds(RecordingSeconds).ToString(@"hh\:mm\:ss") + " - " + pending + " sections awaiting text" : busy ? "Audio saved. Finishing transcription..." : selected.Status;
+                participants.Text = selected.Participants.Count == 0 ? "Introduce yourself: “I am Sudheer.” You can edit your name above." : "Introductions: " + String.Join(", ", selected.Participants);
+            }
+            else { status.Text = "Ready. Notes and audio save locally."; participants.Text = "Introduce yourself: “I am Sudheer.” You can edit your name above."; }
+            noteTitle.Text = selected == null ? "Ready when you are." : selected.Title;
+            noteDetails.Text = selected == null ? "Titles and names fill in automatically. Edit details later." :
+                (selected.Kind ?? "Note") + " \u00b7 " + DateTime.Parse(selected.CreatedUtc).ToLocalTime().ToString("MMM d - h:mm tt") + " | " + (String.IsNullOrWhiteSpace(selected.UserName) ? "Name from your introduction" : selected.UserName) + (selected.Participants.Count > 0 ? " | " + String.Join(", ", selected.Participants) : "");
+            if (selected != null) noteDetails.Text += " | Recorded: " + selected.Mode;
+            UpdateReviewState();
+            if (!String.IsNullOrWhiteSpace(uiError)) status.Text = uiError;
+            string issue = !String.IsNullOrWhiteSpace(uiError) ? uiError : selected == null ? "" : selected.CaptureError;
+            if (!String.IsNullOrWhiteSpace(issue) && issue != reportedIssue) { reportedIssue = issue; if (IssueReported != null) IssueReported(issue); }
+            micMeter.Value = session == null || !recording ? 0 : Math.Min(100, session.MicrophoneLevel * 100 / 12000);
+            outputMeter.Value = session == null || !recording ? 0 : Math.Min(100, session.ComputerLevel * 100 / 12000);
+        }
+        void EditDetails()
+        {
+            if (selected == null || Busy && ReferenceEquals(selected, session.Document)) return; SaveEdits();
+            using (var dialog = new Form { Text = "Edit note details", Icon = AppLogo.Icon, ClientSize = new Size(470, 330), Font = Font, FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, MaximizeBox = false, MinimizeBox = false, AutoScaleMode = AutoScaleMode.None })
+            {
+                var grid = Grid(2, 5); grid.Padding = new Padding(22); grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100)); grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                for (int i = 0; i < 5; i++) grid.RowStyles.Add(new RowStyle(SizeType.Percent, 20)); dialog.Controls.Add(grid);
+                TextBox editedTitle = Field("Title"), editedName = Field("Your name"), editedPeople = Field("People"); editedTitle.Text = selected.Title; editedName.Text = selected.UserName; editedPeople.Text = String.Join(", ", selected.Participants);
+                grid.Controls.Add(Caption("Title"), 0, 0); grid.Controls.Add(editedTitle, 1, 0); grid.Controls.Add(Caption("Your name"), 0, 1); grid.Controls.Add(editedName, 1, 1); grid.Controls.Add(Caption("People"), 0, 2); grid.Controls.Add(editedPeople, 1, 2);
+                var editedTags = Field("Tags"); editedTags.Text = selected.Tags; grid.Controls.Add(Caption("Tags"), 0, 3); grid.Controls.Add(editedTags, 1, 3);
+                var apply = new HubButton { Text = "Save details", Dock = DockStyle.Fill, Primary = true }; grid.Controls.Add(apply, 1, 4);
+                apply.Click += (sender, args) =>
+                {
+                    try { lock (selected) { if (editedTitle.Text.Trim() != selected.Title && !String.IsNullOrWhiteSpace(editedTitle.Text)) { selected.Title = editedTitle.Text.Trim(); selected.AutoTitle = false; } if (editedName.Text.Trim() != selected.UserName) { selected.UserName = editedName.Text.Trim(); selected.NameEdited = true; store.SavedName = selected.UserName; } selected.Tags = editedTags.Text.Trim(); selected.Participants = editedPeople.Text.Split(',').Select(v => v.Trim()).Where(v => v.Length > 0).Distinct().ToList(); store.Save(selected); } title.Text = selected.Title; name.Text = selected.UserName; RefreshState(); dialog.Close(); }
+                    catch (Exception ex) { MessageBox.Show(dialog, ex.Message, "Could not save details"); }
+                };
+                using (var graphics = dialog.CreateGraphics()) { float scale = graphics.DpiX / 96f; if (scale != 1) dialog.Scale(new SizeF(scale, scale)); }
+                dialog.ShowDialog(FindForm());
+            }
+        }
+        void ShowDevices()
+        {
+            if (Busy) return;
+            string micId = microphone.SelectedItem == null ? config.NoteMicrophoneId : ((AudioEndpoint)microphone.SelectedItem).Id;
+            string outId = output.SelectedItem == null ? config.NoteOutputId : ((AudioEndpoint)output.SelectedItem).Id;
+            try { microphone.Items.Clear(); output.Items.Clear(); microphone.Items.AddRange(CoreAudio.List(false).Cast<object>().ToArray()); output.Items.AddRange(CoreAudio.List(true).Cast<object>().ToArray()); microphone.SelectedIndex = output.SelectedIndex = 0; SelectEndpoint(microphone, micId); SelectEndpoint(output, outId); }
+            catch (Exception ex) { uiError = ex.Message; return; }
+            using (var dialog = new Form { Text = "Audio devices", Icon = AppLogo.Icon, ClientSize = new Size(520, 170), Font = Font, FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, MaximizeBox = false, AutoScaleMode = AutoScaleMode.None })
+            {
+                var grid = Grid(2, 3); grid.Padding = new Padding(18); grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110)); grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); for (int i = 0; i < 3; i++) grid.RowStyles.Add(new RowStyle(SizeType.Percent, 33));
+                dialog.Controls.Add(grid); grid.Controls.Add(Caption("Microphone"), 0, 0); grid.Controls.Add(microphone, 1, 0); grid.Controls.Add(Caption("Computer"), 0, 1); grid.Controls.Add(output, 1, 1);
+                var done = new HubButton { Text = "Done", Primary = true, Dock = DockStyle.Fill }; grid.Controls.Add(done, 1, 2); done.Click += (sender, args) => dialog.Close();
+                using (var graphics = dialog.CreateGraphics()) { float scale = graphics.DpiX / 96f; if (scale != 1) dialog.Scale(new SizeF(scale, scale)); }
+                dialog.ShowDialog(FindForm()); config.NoteMicrophoneId = microphone.SelectedItem == null ? "" : ((AudioEndpoint)microphone.SelectedItem).Id; config.NoteOutputId = output.SelectedItem == null ? "" : ((AudioEndpoint)output.SelectedItem).Id; config.Save(); grid.Controls.Remove(microphone); grid.Controls.Remove(output);
+            }
+        }
+        void ShowFilesMenu(Control anchor)
+        {
+            var menu = new ContextMenuStrip();
+            var speakers = menu.Items.Add("Correct speaker labels..."); speakers.Enabled = selected != null && !(Busy && ReferenceEquals(selected, session.Document)); speakers.Click += (s, e) => EditSpeakerLabels();
+            var resume = menu.Items.Add("Resume this recording"); resume.Enabled = selected != null && selected.Segments.Count > 0 && !Busy; resume.Click += (s, e) => ResumeSelected();
+            menu.Items.Add("Recently deleted & storage", null, (s, e) => { if (!Busy) { NotesStorageDialog.Show(FindForm(), store, config); ReloadLibrary(); } });
+            var open = menu.Items.Add("Open conversation (read-only)"); open.Enabled = selected != null;
+            open.Click += (s, e) =>
+            {
+                if (selected == null) return;
+                using (var view = new Form { Text = selected.Title + " - Read-only", Icon = AppLogo.Icon, Size = new Size(740, 620), StartPosition = FormStartPosition.CenterParent })
+                {
+                    view.Controls.Add(new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Font = Font, Text = NoteStore.Transcript(selected), BackColor = Color.White });
+                    view.ShowDialog(FindForm());
+                }
+            };
+            var audio = new ToolStripMenuItem("Open recording"); audio.Enabled = selected != null && !Busy;
+            foreach (string source in new[] { "Microphone", "Computer" })
+            {
+                string path = selected == null ? "" : store.AudioPath(selected, source);
+                var item = audio.DropDownItems.Add(source); item.Enabled = System.IO.File.Exists(path);
+                item.Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true }); } catch (Exception ex) { uiError = ex.Message; RefreshState(); } };
+            }
+            menu.Items.Add(audio);
+            menu.Items.Add("Show files", null, (s, e) => OpenFolder());
+            var export = menu.Items.Add("Export..."); export.Enabled = selected != null && !(Busy && ReferenceEquals(selected, session.Document)); export.Click += (s, e) => ShowExportDialog(); menu.Items.Add(new ToolStripSeparator());
+            var delete = menu.Items.Add("Delete note and recordings"); delete.Enabled = selected != null && !Busy;
+            delete.Click += (s, e) => DeleteSelected();
+            menu.Closed += (s, e) => menu.Dispose(); menu.Show(anchor, new Point(0, anchor.Height));
+        }
+        void Export(string extension)
+        {
+            if (selected == null || Busy) return;
+            SaveEdits();
+            using (var dialog = new SaveFileDialog { Title = "Export conversation", Filter = extension.ToUpperInvariant() + " file|*." + extension, DefaultExt = extension, AddExtension = true, FileName = String.Concat(selected.Title.Select(c => System.IO.Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)) })
+            {
+                if (dialog.ShowDialog(FindForm()) != DialogResult.OK) return;
+                try { NoteExport.Save(selected, dialog.FileName); uiError = "Exported: " + dialog.FileName; RefreshState(); }
+                catch (Exception ex) { uiError = "Export failed: " + ex.Message; RefreshState(); }
+            }
+        }
+        void DeleteSelected()
+        {
+            if (selected == null || Busy) return;
+            if (MessageBox.Show(FindForm(), "Delete this note and its recordings? They will move to the local .deleted folder so they can be recovered.", "Delete note", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            try
+            {
+                saveTimer.Stop(); var removed = selected;
+                if (session != null) { session.Dispose(); session = null; }
+                store.Delete(removed); populating = true; selected = null; documents.Remove(removed); history.Items.Remove(removed);
+                written.Clear(); transcript.Clear(); title.Clear(); populating = false;
+                Select(documents.FirstOrDefault());
+            }
+            catch (Exception ex) { populating = false; uiError = "Could not delete note: " + ex.Message; RefreshState(); }
+        }
+        void OpenFolder()
+        {
+            try { System.IO.Directory.CreateDirectory(store.Root); Process.Start(new ProcessStartInfo { FileName = selected == null ? store.Root : store.Folder(selected), UseShellExecute = true }); }
+            catch (Exception ex) { status.Text = ex.Message; }
+        }
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) { saveTimer.Stop(); SaveEdits(); pulse.Stop(); pulse.Dispose(); saveTimer.Dispose(); if (session != null) session.Dispose(); player.Dispose(); microphone.Dispose(); output.Dispose(); title.Dispose(); name.Dispose(); }
+            base.Dispose(disposing);
+        }
+    }
+}
