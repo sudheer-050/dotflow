@@ -4,10 +4,19 @@ Native Windows dictation, personal notes and meeting transcripts with the small 
 
 ## Install
 
-Run `dist/LocalDictation-Setup-0.6.1.exe` from your normal Windows desktop. The small executable is a bootstrapper: first installation needs internet for the native runtime and approximately 40 MB English model. Setup verifies pinned SHA-256 hashes, checks model loading, then offers Open app. Speech afterwards runs offline. Stop recording and exit the older app when Setup requests it; upgrades preserve notes and preferences.
+Download `LocalDictation-Setup-0.6.1.exe` from the [Releases page](https://github.com/sudheer-050/dotflow/releases/tag/v0.6.1) (or build it with `./scripts/build_setup.ps1`) and run it from your normal Windows desktop. The small executable is a bootstrapper: first installation needs internet for the native runtime and approximately 40 MB English model. Setup verifies pinned SHA-256 hashes, checks model loading, then offers Open app. Speech afterwards runs offline. Stop recording and exit the older app when Setup requests it; upgrades preserve notes and preferences.
 
 This package is unsigned and has not replaced the installed older version. Source and the unsigned Windows preview release are published at https://github.com/sudheer-050/dotflow (see its Releases page; installer SHA-256 is in SHA256SUMS.txt). No signing certificate is configured, so Windows SmartScreen will warn and the in-app updater will not accept this build. No macOS, Android or iOS build is supplied.
 
+### Unsigned preview
+
+This is a hobby/preview release and the installer is not code-signed, so Windows SmartScreen may show "Windows protected your PC". Choose **More info** then **Run anyway** if you trust it, or build from source instead. To check your download, compare its hash with `SHA256SUMS.txt` from the same release:
+
+```powershell
+Get-FileHash .\LocalDictation-Setup-0.6.1.exe -Algorithm SHA256
+```
+
+Automatic updates are disabled for unsigned builds; download new versions from the Releases page.
 ## Writing
 
 Hold F8 or your recorded shortcut to speak; release to refine. Escape cancels. Held modifier shortcuts can delay live insertion until release. Preferences supports terminal paste methods; no Enter is sent. Interrupted insertion offers recovery rather than blindly duplicating text. Failed dictation retains the latest audio in memory for Retry, Copy or Discard. Recovery does not survive exit. Successful paste attempts restore the prior clipboard if no newer copy occurred; clipboard restoration is best effort across formats/apps.
