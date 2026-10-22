@@ -1,53 +1,126 @@
-﻿# Dotflow 0.7.0
+<p align="center"><img src="assets/local-dictation.png" width="84" alt="Dotflow four-dot logo"></p>
 
-Native Windows dictation, personal notes and meeting transcripts with the small English Vosk model. No Docker, Python, Holly, cloud API or account. Supported target: Windows 10/11 x64 with .NET Framework 4.8.
+# Dotflow
 
-## Install
+**Speak. Write. Keep the conversation.**
 
-Build `dist/Dotflow-Setup-0.7.0.exe` with `./scripts/build_setup.ps1` (this version has not been published by this session) and run it from your normal Windows desktop. The small executable is a bootstrapper: first installation needs internet for the native runtime and approximately 40 MB English model. Setup verifies pinned SHA-256 hashes, checks model loading, then offers Open app. Speech afterwards runs offline. Stop recording and exit the older app when Setup requests it; upgrades preserve notes and preferences.
+Private voice typing, personal notes and meeting transcripts for Windows. Hold your shortcut to write, or capture microphone audio, computer output, or both into a local notebook.
 
-This package is unsigned and has not replaced the installed older version. Source and the unsigned Windows preview release are published at https://github.com/sudheer-050/dotflow (see its Releases page; installer SHA-256 is in SHA256SUMS.txt). No signing certificate is configured, so Windows SmartScreen will warn and the in-app updater will not accept this build. No macOS, Android or iOS build is supplied.
+![Dotflow: your voice, on your device](assets/dotflow-banner.svg)
 
-### Unsigned preview
+[Get started](#get-started) ? [Features](#three-ways-to-capture) ? [How it works](#how-it-works) ? [Privacy](#your-data-stays-on-your-device) ? [User guide](USER_GUIDE.md) ? [Project story](https://myhai.org/project.html?project=dotflow)
 
-This is a hobby/preview release and the installer is not code-signed, so Windows SmartScreen may show "Windows protected your PC". Choose **More info** then **Run anyway** if you trust it, or build from source instead. To check your download, compare its hash with `SHA256SUMS.txt` from the same release:
+| Platform | Speech | Runtime | Current version |
+|---|---|---|---|
+| Windows 10/11 x64 | English, local Vosk | Native C# / .NET Framework 4.8 | 0.7.0 preview |
 
-```powershell
-Get-FileHash .\Dotflow-Setup-0.7.0.exe -Algorithm SHA256
+## Why Dotflow?
+
+Writing and remembering a conversation are different jobs. Dotflow brings both into a small desktop app: dictate into a text field, capture a thought without keeping the main window open, or save a meeting with the original conversation separate from your own notes.
+
+The project started with a shortcut-driven dictation tool and grew into a native Windows application with an edge toolbar, selectable audio sources, local playback, and view-oriented PDF exports. Speech runs on your computer after the first setup download. No Docker, Python installation, cloud API key or account is needed to use the app.
+
+## Three ways to capture
+
+| Workflow | What you do | What you keep |
+|---|---|---|
+| **Voice typing** | Focus a text field, hold F8 or your chosen combination, speak, then release. | Refined text inserted into the target app; optional live writing. |
+| **Personal notes** | Start from Home, the edge toolbar or the note toggle shortcut. Press again to stop. | A local record with editable details and your own notes. |
+| **Meeting transcripts** | Choose microphone, computer output or both, then record and pause/resume as needed. | Timestamped conversation and separate source audio tracks. |
+
+### Write in your own style
+
+Choose **Standard**, **Chat**, **Email** or conservative **Code** formatting. Turn cleanup off for verbatim writing. Save names, vocabulary and spoken snippets with a searchable editor; explicitly remember a correction when you want it reused. These rules affect dictation, never the original recorded conversation.
+
+![Words and snippets editor using demonstration entries](assets/words-and-snippets.png)
+
+### Keep the original conversation
+
+Search saved notes by content, title, names and tags. Review timestamp/source blocks, play available audio tracks, seek and change playback speed. Correct speaker labels while preserving the spoken words. Titles and participant details inferred from introductions remain editable.
+
+The local review tools organize source quotes and find related statements using keywords. They do not perform semantic AI summarization or automatic speaker diarization.
+
+### Share a PDF snapshot
+
+Preview **Conversation only**, **Personal notes only** or **Full record**, then save a searchable PDF. Participant/speaker labels are optional; spoken names remain in the text. The export UI offers PDF only, keeping editable data formats out of the conversation-sharing flow.
+
+![PDF export scope and readable preview using demonstration data](assets/pdf-export.png)
+
+Original conversations are read-only inside Dotflow. An exported PDF is a copy: external tools can change it, and it is not digitally signed or tamper-proof evidence. Screenshots above use isolated demonstration data.
+
+### Stay out of the way
+
+A slim edge toolbar reveals icons on hover, with names on each icon. Drag it to any screen edge; orientation follows the edge. Use Light, Dark or System theme, reduced motion, optional recording animation, permanent hide or a one-hour snooze. Shortcuts are configurable, and notes use a toggle rather than requiring you to keep a key held.
+
+## Get started
+
+1. **Get the source** from this repository, or check [GitHub Releases](https://github.com/sudheer-050/dotflow/releases) for available installer assets. The 0.7.0 source is available; a hosted 0.7.0 installer has not been verified here.
+2. **Build the installer** on Windows if you are using the source:
+
+   ```powershell
+   .\scripts\build_setup.ps1
+   ```
+
+3. Run `dist/Dotflow-Setup-0.7.0.exe`. It is a small bootstrapper, not the entire installed package. First installation needs internet for the pinned native runtime and approximately 40 MB English speech model; setup verifies hashes and tests model loading.
+4. Open Dotflow, complete the microphone and Practice checks, then confirm that dictation appears in another app. Speech can run offline afterwards.
+
+**Requirements:** Windows 10/11 x64, .NET Framework 4.8, microphone permission for microphone capture, and an output device for system audio. No macOS, Android or iOS build is supplied. The preview installer is unsigned; there is no configured signed automatic-update feed. Review the source and release hashes before choosing to install it.
+
+For terminal input, select Auto, Ctrl+Shift+V or Shift+Insert in Writing preferences as appropriate for your terminal. Dotflow does not send Enter. Held modifier combinations can delay live insertion until release.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Microphone / computer audio] --> B[Native Windows capture]
+    B --> C[Local English Vosk model]
+    C --> D{Capture mode}
+    D --> E[Dictation cleanup + chosen style]
+    E --> F[Target text field]
+    D --> G[Timestamped local record + source audio]
+    G --> H[Read-only conversation / editable personal notes]
+    H --> I[Playback, search and PDF snapshot]
 ```
 
-Automatic updates are disabled for unsigned builds; download new versions from the Releases page.
-## Writing
+| Layer | Implementation |
+|---|---|
+| Desktop interface | C# WinForms, native keyboard and tray integration |
+| Speech recognition | Small English Vosk model, local inference |
+| Audio | Windows microphone capture and WASAPI output capture |
+| Persistence | Local note metadata, transcripts and WAV tracks |
+| Export | Searchable, tagged Unicode PDF with scope preview |
+| Installation | Windows bootstrapper with pinned component hashes |
 
-Hold F8 or your recorded shortcut to speak; release to refine. Escape cancels. Held modifier shortcuts can delay live insertion until release. Preferences supports terminal paste methods; no Enter is sent. Interrupted insertion offers recovery rather than blindly duplicating text. Failed dictation retains the latest audio in memory for Retry, Copy or Discard. Recovery does not survive exit. Successful paste attempts restore the prior clipboard if no newer copy occurred; clipboard restoration is best effort across formats/apps.
+## Your data stays on your device
 
-The slim toolbar snaps to the nearest usable edge, horizontal at top/bottom and vertical at left/right, within approximately 1 mm at ordinary scaling. Hover to reveal icons, hover each icon for its name, and drag the bar/grip to reposition. Preferences provides visibility, optional voice animation, reduced motion and Light/Dark/System themes. The system tray offers a one-hour snooze and keyboard action menu.
+- Speech recognition uses local model files. Setup downloads components; update checks are optional.
+- Dictation audio stays in memory. The latest failed dictation may be retried, copied or discarded; recovery ends when the app exits.
+- Notes deliberately save audio and text under `%LOCALAPPDATA%\LocalDictation\Notes`. Internal names are preserved for upgrade compatibility.
+- Recording computer output captures all apps using the selected output device. Choose the device used by your call and use headphones to reduce duplicated audio. Record only with the appropriate participants' consent.
+- Recently deleted recovery, explicit permanent deletion, opt-in retention and ZIP backup/restore help manage saved records. Backups contain active notes, not preferences, deleted records or speech components.
 
-## Notes and meetings
+## Verification and current limits
 
-Home provides Dictate, New note, Record meeting, readiness and recent work. Notes captures microphone, computer output or both, remembers device IDs, and shows separate meters. Pause/resume preserves the timeline in one record. Changed default endpoints stop capture with saved audio and recovery instructions. Select the output actually used by the call; capture includes all apps using that device. Headphones reduce duplicated audio.
+**84 automated checks passed; four live checks were excluded** in the 0.7.0 verification run. Coverage includes isolated UX flows, Cancel behavior, original-word preservation, export scope, PDF structure, backup/import safety, setup hashes and native-engine lifetime. See the [full implementation report](FIX_REPORT_0.7.0.md) for the disposition of all 38 review findings.
 
-Continuous per-source recognition preserves context across queued chunks. Separate WAV tracks retain synchronized silence gaps. Quiet-noise suppression is a conservative signal-level gate, not a validated speech detector: quiet speech can be missed and loud noise/music retained.
+The current model is deliberately small. Quiet speech, proper names, overlapping speakers and long meetings still need a consented accuracy corpus. Quiet-noise suppression is a signal-level gate; it can miss quiet speech or retain loud non-speech. Real browser/terminal insertion, call capture, mixed-DPI monitors and Narrator require normal desktop acceptance. No measured Wispr accuracy or latency comparison is claimed.
 
-Titles and names are inferred from content/introductions and editable later. Shared output remains labelled by source: participant names do not identify each speaker. Library search includes transcript/body, names and tags. Conversation is read-only; annotations remain editable. Ctrl+F/F3 finds conversation text. Double-click a timestamp for playback, with source, seek and speed controls. Local review groups source quotes into an overview, possible decisions/follow-ups and keyword answers. It uses original text rather than semantic AI inference. Speaker labels can be corrected without editing spoken words.
+## Development
 
-Export previews Conversation, Personal notes or Full record, with optional participant metadata. Names spoken in the transcript are not redacted. PDFs have searchable, tagged Unicode text; The export dialog offers view-oriented PDF only. External PDF copies can still be altered with specialist tools. Exports are not signed or tamper-proof evidence and never change original spoken words. File replacement is atomic.
+```powershell
+git clone https://github.com/sudheer-050/dotflow.git
+cd dotflow
+.\scripts\build_setup.ps1
+```
 
-Storage provides size breakdowns, recently deleted restore, confirmed permanent deletion, opt-in retention and active-note ZIP backup/restore. Existing note IDs are skipped on restore. Backups exclude deleted records, preferences and speech components. Default retention keeps deleted records until explicitly removed.
+Builds use the installed Windows .NET compiler. Python is needed only for the optional development tests, not the app. See [requirements-dev.txt](requirements-dev.txt). Preserve existing user data when testing; diagnostic fixtures should use isolated directories.
 
-## Preferences and data
+## Explore the project
 
-Recording, Writing, Notes, App, Storage and About are grouped with unsaved-change prompts. Dictation uses a press-to-record shortcut picker; the single note toggle shortcut uses a dropdown. Common reserved/prefix conflicts produce warnings. Dictionary/snippets support local import/export and affect dictation only.
+- [User guide](USER_GUIDE.md): shortcuts, audio selection, playback and storage.
+- [Release notes](RELEASE_NOTES.md): what changed in 0.7.0.
+- [Fix report](FIX_REPORT_0.7.0.md): implementation evidence and outstanding acceptance work.
+- [Third-party notices](THIRD_PARTY_NOTICES.md): included components and their licenses.
+- [Report an issue](https://github.com/sudheer-050/dotflow/issues): include your Windows version, capture mode and steps to reproduce; keep private recordings out of public issues.
 
-Notes are in `%LOCALAPPDATA%\LocalDictation\Notes`. Dictation audio stays in memory; note capture deliberately saves audio/text. The updater offers opt-in startup checks and manual installation; it requires a configured HTTPS manifest and trusted certificate thumbprint, and verifies installer hash and Windows signature before launching. No public signed feed is configured. Uninstall retains user data by default and separately offers component/data removal.
-
-## Build and verification
-
-Run `./scripts/build_setup.ps1`. Builds use the installed Windows .NET compiler without downloading build dependencies. `scripts/prepare_release.ps1` prepares local metadata only; its default GitHub repository is a proposal, not a published location. A real CurrentUser signing certificate may be selected through `LOCALDICTATION_SIGN_CERTIFICATE`.
-
-Local checks: 79 passed, four live checks deselected. Includes WAV append, backup/restore and traversal rejection, dictionary validation, content search, recovery discard, export structures, searchable Unicode PDF, setup hashes and real installed-engine shutdown lifetime. App-owned Light/Dark previews were rendered. Real microphone/call capture, playback, cross-app typing, multi-monitor DPI and accessibility require a normal desktop session. These checks do not establish Wispr-equivalent accuracy.
-
-See [USER_GUIDE.md](USER_GUIDE.md), [RELEASE_NOTES.md](RELEASE_NOTES.md), [BACKLOG_STATUS.md](BACKLOG_STATUS.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-
-Version 0.7.0 adds explicit Standard, Chat, Email and Code writing styles, a searchable Words & snippets editor, and user-controlled Record/Stop on Practice. Closing recording-device selection without Apply cancels changes. Setup records successful microphone and recognition checks, then asks you to confirm typing into another app. Conversations remain read-only; titles, participant labels and personal notes can be edited separately.
+Built by [Sudheer Kumar Gandiboyana](https://github.com/sudheer-050).
