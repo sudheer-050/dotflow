@@ -124,7 +124,7 @@ namespace LocalDictation
         readonly CheckBox startup = new CheckBox { Text = "Keep the toolbar ready when I sign in", AutoSize = true };
         readonly TextBox raw = new TextBox { Multiline = true, ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None };
         readonly TextBox cleaned = new TextBox { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None };
-        readonly HubButton testMic = new HubButton { Text = "Test microphone" }, transcribe = new HubButton { Text = "Try a sentence", Primary = true }, testStt = new HubButton { Text = "Check connection" }, copy = new HubButton { Text = "Copy text" };
+        readonly HubButton testMic = new HubButton { Text = "Test microphone" }, transcribe = new HubButton { Text = "Record a sentence", Primary = true }, testStt = new HubButton { Text = "Check connection" }, copy = new HubButton { Text = "Copy text" };
         readonly System.Windows.Forms.Timer poll = new System.Windows.Forms.Timer { Interval = 60 };
         MicRecorder testRecorder;
         DateTime testEnds;
@@ -142,7 +142,7 @@ namespace LocalDictation
         public SettingsForm(Config config, string lastRaw, string lastCleaned, NoteStore noteStore = null)
         {
             SuspendLayout();
-            source = config; ThemeColors.Mode = config.Theme; Icon = AppLogo.Icon; Text = "Local Dictation"; BackColor = Paper; ForeColor = Ink;
+            source = config; ThemeColors.Mode = config.Theme; Icon = AppLogo.Icon; Text = "Dotflow"; BackColor = Paper; ForeColor = Ink;
             Font = new Font("Segoe UI", 10); ClientSize = new Size(1080, 740); MinimumSize = new Size(960, 690);
             AutoScaleMode = AutoScaleMode.None; StartPosition = FormStartPosition.CenterScreen;
             Controls.Add(host); Controls.Add(sidebar);
@@ -151,7 +151,7 @@ namespace LocalDictation
             for (int i = 0; i < names.Length; i++)
             {
                 int at = i;
-                navigation[i] = new HubButton { Text = names[i], Left = 18, Top = 140 + new[] { 0, 2, 3, 4, 1 }[i] * 48, Width = 158, Height = 40, AccessibleName = names[i] };
+                navigation[i] = new HubButton { Text = names[i] == "Playground" ? "Practice" : names[i], Left = 18, Top = 140 + new[] { 0, 2, 3, 4, 1 }[i] * 48, Width = 158, Height = 40, AccessibleName = names[i] };
                 navigation[i].Click += (s, e) => ShowPage(names[at]); sidebar.Controls.Add(navigation[i]);
                 pages[i] = new Panel { Dock = DockStyle.Fill, BackColor = Paper, AutoScroll = true, Visible = false, Name = names[i] }; host.Controls.Add(pages[i]);
             }
@@ -205,13 +205,13 @@ namespace LocalDictation
         {
             var icon = new Panel { Left = 22, Top = 34, Width = 36, Height = 36, BackColor = Color.Transparent };
             icon.Paint += (s, e) => { e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic; e.Graphics.DrawImage(AppLogo.Image, icon.ClientRectangle); };
-            parent.Controls.Add(icon); Label(parent, "Local\nDictation", 68, 31, 112, 50, 12, true, Ink);
+            parent.Controls.Add(icon); Label(parent, "Dotflow", 68, 31, 112, 50, 12, true, Ink);
             Label(parent, "PRIVATE. OFFLINE.", 22, 99, 160, 20, 8, true, Muted);
         }
         void Heading(Panel page, string title, string subtitle)
         {
-            Label(page, title, 40, 24, 700, 38, 22, false, Ink);
-            Label(page, subtitle, 42, 67, 700, 32, 10, false, Muted);
+            Label(page, title, 40, 18, 700, 32, 18, false, Ink);
+            Label(page, subtitle, 42, 56, 700, 28, 9, false, Muted);
         }
         Surface Card(Panel page, int top, int height)
         {
@@ -221,33 +221,33 @@ namespace LocalDictation
         void BuildHome()
         {
             var p = pages[0]; Heading(p, "What would you like to capture?", "Private, offline speech and notes. Ready when you are.");
-            var actions = Card(p, 112, 126);
+            var actions = Card(p, 100, 116);
             Label(actions, "Start with your voice", 24, 18, 600, 28, 15, true, Ink);
             Button(actions, "Dictate", 24, 68, 166, (s, e) => { if (BeginDictation != null) BeginDictation(); else ShowPage("Playground"); }, true);
             Button(actions, "New note", 210, 68, 166, (s, e) => { ShowPage("Notes"); notes.NewWrittenNote(); });
             Button(actions, "Record meeting", 396, 68, 180, (s, e) => { ShowPage("Notes"); notes.Toggle(source.MeetingSource, "Meeting"); });
-            var readiness = Card(p, 252, 96);
+            var readiness = Card(p, 230, 88);
             homeShortcut.SetBounds(24, 18, 210, 26); readiness.Controls.Add(homeShortcut);
             homeMicrophone.SetBounds(24, 55, 510, 26); readiness.Controls.Add(homeMicrophone);
             var setup = Button(readiness, "Check setup", 584, 32, 140, (s, e) => FirstRunSetup());
             readiness.Resize += (s, e) => homeMicrophone.Width = Math.Max(80, setup.Left - homeMicrophone.Left - (int)(20 * uiScale));
-            readinessStatus = Label(p, "Speech engine: checking availability...", 42, 358, 720, 34, 10, false, Muted);
-            var recent = Card(p, 400, 220); Label(recent, "Recent work", 24, 15, 500, 23, 11, true, Ink);
+            readinessStatus = Label(p, "Speech engine: checking availability...", 42, 328, 720, 28, 10, false, Muted);
+            var recent = Card(p, 368, 190); Label(recent, "Recent work", 24, 15, 500, 23, 11, true, Ink);
             homeLatest.SetBounds(24, 46, 650, 38); homeLatest.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right; recent.Controls.Add(homeLatest);
-            Button(recent, "Recover unfinished speech", 24, 88, 228, (s, e) => { if (OpenRecovery != null) OpenRecovery(); });
+            recoverButton = Button(recent, "Recover unfinished speech", 24, 88, 228, (s, e) => { if (OpenRecovery != null) OpenRecovery(); });
             issuesButton = Button(recent, "Issues & recovery", 270, 88, 190, (s, e) => ShowIssues());
-            recentNotes.SetBounds(24, 142, 650, 60); recent.Controls.Add(recentNotes); recentNotes.DoubleClick += (s, e) => { var note = recentNotes.SelectedItem as NoteDocument; if (note != null) { ShowPage("Notes"); notes.SelectNote(note.Id); } };
+            recoverButton.Visible = false; issuesButton.Visible = issues.Length > 0; recentNotes.SetBounds(24, 132, 650, 48); recent.Controls.Add(recentNotes); recentNotes.DoubleClick += (s, e) => { var note = recentNotes.SelectedItem as NoteDocument; if (note != null) { ShowPage("Notes"); notes.SelectNote(note.Id); } };
             string detail; SetReadiness(SpeechEngine.Healthy(source, out detail) ? "Ready - English speech stays on this device." : detail);
         }
         void BuildPlayground()
         {
-            var p = pages[1]; Heading(p, "Find your flow.", "A quiet place to test your microphone and see your words take shape.");
+            var p = pages[1]; Heading(p, "Practice dictation", "Record a sentence, review it, then try your shortcut in another app.");
             var recording = Card(p, 142, 158);
             Label(recording, "Say something. Make it yours.", 24, 20, 600, 29, 16, true, Ink);
-            Label(recording, "Try a four-second recording, or click the speech field below and hold your shortcut.", 24, 59, 680, 32, 10, false, Muted);
+            Label(recording, "Click Record a sentence. Speak, then click Stop and review.", 24, 59, 680, 32, 10, false, Muted);
             transcribe.SetBounds(24, 104, 152, 38); recording.Controls.Add(transcribe);
-            var cancelTest = Button(recording, "Cancel test", 185, 104, 120, (s, e) => { StopTest(); sttStatus.Text = "Test canceled. No audio was saved."; });
-            Button(recording, "Open test WAV", 330, 104, 145, (s, e) => TestAudioFile());
+            var cancelTest = Button(recording, "Cancel", 185, 104, 120, (s, e) => { StopTest(); sttStatus.Text = "Test canceled. No audio was saved."; });
+            Button(recording, "Advanced test...", 330, 104, 145, (s, e) => TestAudioFile());
             var guidance = Label(recording, "", 490, 114, 210, 24, 9, false, Muted);
             var preview = Card(p, 320, 282);
             rawHeading = Label(preview, "YOUR SPEECH", 24, 22, 300, 24, 8, true, Muted);
@@ -255,28 +255,23 @@ namespace LocalDictation
             raw.SetBounds(24, 62, 325, 147); cleaned.SetBounds(388, 62, 325, 147); raw.BackColor = cleaned.BackColor = Color.White;
             raw.AccessibleName = "Your speech"; cleaned.AccessibleName = "Cleaned result"; preview.Controls.Add(raw); preview.Controls.Add(cleaned);
             copy.SetBounds(24, 224, 112, 36); preview.Controls.Add(copy);
-            Button(preview, "Clear", 150, 224, 90, (s, e) => UpdateTranscript("", ""));
+            Button(preview, "Clear", 150, 224, 90, (s, e) => UpdateTranscript("", "")); Button(preview, "Remember a correction", 260, 224, 240, (s, e) => RememberCorrection());
             preview.Resize += (s, e) => LayoutTranscript(preview);
             sttStatus.SetBounds(44, 625, 700, 55); sttStatus.ForeColor = Muted; sttStatus.Text = "Ready for your first sentence."; p.Controls.Add(sttStatus);
         }
         void BuildPreferences() { BuildOrganizedPreferences(); }
         void BuildHelp()
         {
-            var p = pages[3]; Heading(p, "Help & troubleshooting", "Clear steps for dictation, meetings and recovery.");
-            var guide = Card(p, 142, 315);
-            Label(guide, "01   Click where you want to write", 26, 26, 650, 30, 15, true, Ink);
-            Label(guide, "A document, a message, a browser field. Put the cursor there first.", 64, 64, 630, 40, 10, false, Muted);
-            Label(guide, "02   Hold your shortcut and speak", 26, 119, 650, 30, 15, true, Ink);
-            Label(guide, "The floating indicator moves with your voice. Let go when you are finished.", 64, 157, 630, 40, 10, false, Muted);
-            Label(guide, "03   Keep your train of thought", 26, 212, 650, 30, 15, true, Ink);
-            Label(guide, "Your words appear in the field. Press Esc during recording to cancel.", 64, 250, 630, 40, 10, false, Muted);
-            Button(p, "Set up microphone", 42, 644, 190, (s, e) => FirstRunSetup());
-            Button(p, "Storage & backup", 248, 644, 190, (s, e) => { if (notes != null && !notes.Busy) NotesStorageDialog.Show(this, notes.Store, source); });
-            Button(p, "Recover dictation", 454, 644, 190, (s, e) => { if (OpenRecovery != null) OpenRecovery(); });
-            var details = Card(p, 706, 150); Label(details, "Notes and meeting controls", 24, 16, 680, 28, 13, true, Ink); Label(details, "Home starts a note or meeting directly. Pause holds your place; Resume continues the same record.\nConversation words are read-only. Use Ctrl+F to find text; double-click a timestamp to play audio.\nExport previews the selected content. More opens recordings and recently deleted notes.\nThe edge toolbar opens only on hover. Hover an icon for its name; the X cancels dictation.", 24, 55, 690, 94, 9, false, Muted);
-            var privacy = Card(p, 478, 140);
-            Label(privacy, "A private space for your voice.", 24, 22, 680, 30, 15, true, Ink);
-            Label(privacy, "Dictation stays temporary. Notes save audio and text locally in the notes folder.\nFor meetings, select the same output device your call uses. Headphones avoid echo.\nClosing this window keeps recording in the tray. Stop saves audio and finishes pending text.", 24, 62, 690, 68, 10, false, Muted);
+            var p = pages[3]; Heading(p, "Help", "Choose what you need help with.");
+            var card = Card(p, 100, 350);
+            Button(card, "Text is not appearing", 22, 20, 290, (s, e) => MessageBox.Show(this, "Click the target field first. Try the edge toolbar or your dictation key. For terminals, choose a paste method in Writing. Windows may block typing into an administrator window. Your recovered text is available from the system tray.", "Typing into another app"));
+            Button(card, "No microphone sound", 22, 70, 290, (s, e) => { ShowPage("Preferences"); SelectSettingsCategory("Recording"); });
+            Button(card, "No meeting audio", 22, 120, 290, (s, e) => { ShowPage("Notes"); notes.ShowRecordingHelp(); });
+            Button(card, "Recover a dictation", 22, 170, 290, (s, e) => { if (OpenRecovery != null) OpenRecovery(); });
+            Button(card, "Export a conversation", 22, 220, 290, (s, e) => MessageBox.Show(this, "Open a saved note and choose Export PDF. Select conversation, personal notes or the full record. Original conversation text stays read-only; external PDF copies are not tamper-proof.", "PDF export"));
+            Button(card, "Storage and backup", 22, 270, 290, (s, e) => { if (notes != null && !notes.Busy) { NotesStorageDialog.Show(this, notes.Store, source); notes.ReloadLibrary(); } });
+            var tips = Card(p, 470, 120); Label(tips, "Your recording controls", 22, 14, 680, 24, 12, true, Ink);
+            Label(tips, "Hover the edge bar for icons, then hover an icon for its name. Drag its grip to move.\nThe separate voice animation is optional in App preferences. Escape cancels dictation.\nFor meetings, use headphones and select the output device used by your call.", 22, 46, 690, 65, 9, false, Muted);
         }
         public void ShowPage(string name)
         {
@@ -324,9 +319,9 @@ namespace LocalDictation
         {
             raw.Text = text ?? ""; RefreshCleaned();
             homeLatest.Parent.Visible = true;
-            homeLatest.Text = String.IsNullOrWhiteSpace(cleaned.Text) ? "Your last dictation appears here. Double-click a recent note to reopen it." : cleaned.Text;
+            homeLatest.Text = String.IsNullOrWhiteSpace(cleaned.Text) ? "Recent notes open with a double-click. Dictation audio is not stored." : cleaned.Text;
         }
-        void RefreshCleaned() { cleaned.Text = cleanup.Checked ? TextCleanup.Clean(raw.Text) : raw.Text.Trim(); copy.Enabled = cleaned.Text.Length > 0; copy.Text = "Copy text"; }
+        void RefreshCleaned() { var draft = source.Copy(); draft.CleanupEnabled = cleanup.Checked; draft.WritingStyle = writingStyle.SelectedItem == null ? source.WritingStyle : writingStyle.Text; draft.Personalization = pendingRules ?? source.Personalization; cleaned.Text = WritingFormat.Compose(draft, raw.Text); copy.Enabled = cleaned.Text.Length > 0; copy.Text = "Copy text"; }
         void RefreshHome() { if (notes != null) { recentNotes.Items.Clear(); foreach (var note in notes.RecentEntries.Take(3)) recentNotes.Items.Add(note); }  homeShortcut.Text = source.Hotkey.Replace("+", " + "); homeShortcut.Text = "Hold " + source.Hotkey.Replace("+", " + ") + " to dictate"; homeShortcut.Font = new Font("Segoe UI", 10, FontStyle.Bold); homeMicrophone.Text = source.Microphone == Config.DefaultMic ? "Windows default microphone" : source.Microphone; }
         public void SavePreferences()
         {
@@ -338,7 +333,7 @@ namespace LocalDictation
                 Result.Microphone = SelectedMic(); Result.CleanupEnabled = cleanup.Checked; Result.AutoPaste = autoPaste.Checked; Result.LiveWriting = liveWriting.Checked;
                 Result.PasteMethod = new[] { "Auto", "CtrlV", "CtrlShiftV", "ShiftInsert" }[pasteMethod.SelectedIndex]; Result.StartWithWindows = startup.Checked;
                 Result.UpdateManifestUrl = updateUrl.Text.Trim(); Result.UpdatePublisherThumbprint = updatePublisher.Text.Replace(" ", "").Trim();
-                Result.CheckUpdatesOnStart = updateOnStart.Checked;
+                Result.CheckUpdatesOnStart = updateOnStart.Checked; Result.WritingStyle = writingStyle.Text;
                 Result.Personalization = pendingRules; Result.Theme = Convert.ToString(themeChoice.SelectedItem); Result.ShowToolbar = toolbarChoice.Checked; Result.ShowVoiceIndicator = indicatorChoice.Checked; Result.ReducedMotion = motionChoice.Checked; Result.ReduceNoise = noiseChoice.Checked;
                 Result.Validate(); string warning = Shortcut.Warning(Result.Hotkey, Result.NotesHotkey); if (warning != null && MessageBox.Show(this, warning + "\nSave this shortcut anyway?", "Shortcut warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return; if (OnSaved != null) OnSaved(Result); source = Result; dirty = false; savePinned.Text = "Save preferences"; ThemeColors.Apply(this, source.Theme); if (notes != null) notes.UpdateConfig(Result); RefreshHome(); saved.Text = "Saved. Your next dictation uses these preferences.";
             }
@@ -346,38 +341,43 @@ namespace LocalDictation
             sidebarStatus.Text = saved.Text;
         }
         string SelectedMic() { return mic.SelectedIndex <= 0 ? Config.DefaultMic : mic.SelectedItem.ToString(); }
+        int practiceGeneration;
         void StartTest(bool andTranscribe)
         {
-            if (transcribing || (CanTest != null && !CanTest())) { sttStatus.Text = "Finish your current dictation before starting a microphone test."; return; }
+            if (testRecorder != null && testTranscribes && andTranscribe) { FinishPractice(); return; }
+            if (transcribing || (CanTest != null && !CanTest())) { sttStatus.Text = "Finish your current dictation before testing."; return; }
             StopTest();
             try { testRecorder = new MicRecorder(SelectedMic()); testRecorder.Start(); }
-            catch (Exception ex) { micStatus.Text = "Microphone: " + ex.Message; sttStatus.Text = micStatus.Text; return; }
-            testTranscribes = andTranscribe; testEnds = DateTime.UtcNow.AddSeconds(andTranscribe ? 4 : 3);
-            sttStatus.Text = "Listening — speak now. Recording ends in four seconds."; micStatus.Text = "Listening…";
-            testMic.Enabled = transcribe.Enabled = false; transcribe.Text = "Listening…"; poll.Start();
+            catch (Exception ex) { micStatus.Text = "Microphone unavailable. Choose a device and check Windows microphone permission. " + ex.Message; sttStatus.Text = micStatus.Text; return; }
+            testTranscribes = andTranscribe; testEnds = DateTime.UtcNow.AddSeconds(andTranscribe ? 60 : 3);
+            sttStatus.Text = andTranscribe ? "Speak a sentence, then click Stop and review. Maximum: one minute." : "Checking microphone activity..."; micStatus.Text = "Listening...";
+            testMic.Enabled = false; transcribe.Enabled = andTranscribe; transcribe.Text = andTranscribe ? "Stop and review" : "Checking..."; poll.Start();
         }
         void StopTest()
         {
-            poll.Stop(); testMic.Enabled = transcribe.Enabled = true; transcribe.Text = "Try a sentence"; meter.Value = 0;
+            practiceGeneration++; transcribing = false; poll.Stop(); testMic.Enabled = transcribe.Enabled = true; transcribe.Text = "Record a sentence"; meter.Value = 0;
             if (testRecorder != null) { testRecorder.Dispose(); testRecorder = null; }
         }
         void PollTest()
         {
+            if (testRecorder == null) return; meter.Value = Math.Min(100, testRecorder.Level * 100 / 12000);
+            if (DateTime.UtcNow >= testEnds) FinishPractice();
+        }
+        void FinishPractice()
+        {
             if (testRecorder == null) return;
-            meter.Value = Math.Min(100, testRecorder.Level * 100 / 12000);
-            if (DateTime.UtcNow < testEnds) return;
-            string device = testRecorder.DeviceName; int peak = testRecorder.Peak; byte[] pcm = testRecorder.Stop(); StopTest();
-            micStatus.Text = peak < 150 ? "No sound. Choose another microphone." : "Microphone is working.";
-            if (peak < 150) { sttStatus.Text = "No sound captured from " + device + ". Choose your microphone in Preferences."; return; }
-            if (!testTranscribes) return;
-            transcribing = true; testMic.Enabled = transcribe.Enabled = false;
-            sttStatus.Text = "Turning your voice into words…"; var cfg = source;
+            string device = testRecorder.DeviceName; int peak = testRecorder.Peak; byte[] pcm = testRecorder.Stop(); bool recognize = testTranscribes; StopTest();
+            source.SetupMicrophoneVerified = peak >= 150; micStatus.Text = peak < 150 ? "No sound detected. Choose another microphone or check permission." : "Microphone activity detected.";
+            if (peak < 150) { sttStatus.Text = "No sound captured from " + device + ". Choose your microphone in Preferences."; Array.Clear(pcm, 0, pcm.Length); return; }
+            if (!recognize) { if (CloseToTray) try { source.Save(); } catch (Exception ex) { micStatus.Text = "Input detected; setup status could not be saved: " + ex.Message; } Array.Clear(pcm, 0, pcm.Length); return; }
+            transcribing = true; int gen = practiceGeneration; testMic.Enabled = transcribe.Enabled = false; sttStatus.Text = "Recognizing your sentence locally..."; var cfg = source.Copy(); cfg.Microphone = SelectedMic();
             ThreadPool.QueueUserWorkItem(_ =>
             {
-                string text = null, error = null;
-                try { text = SpeechEngine.TranscribeEnsured(cfg, MicRecorder.ToWav(MicRecorder.Normalize(pcm, peak))); }
-                catch (Exception ex) { error = ex.Message; }
-                Post(() => { transcribing = false; testMic.Enabled = transcribe.Enabled = true; if (error != null) sttStatus.Text = error; else { UpdateTranscript(text, ""); sttStatus.Text = String.IsNullOrWhiteSpace(text) ? "No words recognized. Try a full sentence." : "There you go. Your words are ready."; } });
+                string text = null, error = null; try { text = SpeechEngine.TranscribeEnsured(cfg, MicRecorder.ToWav(MicRecorder.Normalize(pcm, peak))); } catch (Exception ex) { error = ex.Message; } finally { Array.Clear(pcm, 0, pcm.Length); }
+                Post(() => { if (gen != practiceGeneration) return; transcribing = false; testMic.Enabled = transcribe.Enabled = true; transcribe.Text = "Record a sentence";
+                    if (error != null) { sttStatus.Text = error; return; } UpdateTranscript(text, ""); source.SetupSpeechVerified = !String.IsNullOrWhiteSpace(text); if (CloseToTray) try { source.Save(); } catch (Exception ex) { sttStatus.Text = "Practice succeeded, but setup status could not be saved: " + ex.Message; return; }
+                    sttStatus.Text = source.SetupSpeechVerified ? "Sentence recognized. Now try your shortcut in another app, then confirm the result in Check setup." : "No words recognized. Try a clear sentence.";
+                });
             });
         }
         void CheckStt()

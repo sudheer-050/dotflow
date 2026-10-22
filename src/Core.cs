@@ -5,10 +5,10 @@ using System.Net;
 using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
 
-[assembly: System.Reflection.AssemblyTitle("Local Dictation")]
-[assembly: System.Reflection.AssemblyProduct("Local Dictation")]
-[assembly: System.Reflection.AssemblyVersion("0.6.1.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.6.1.0")]
+[assembly: System.Reflection.AssemblyTitle("Dotflow")]
+[assembly: System.Reflection.AssemblyProduct("Dotflow")]
+[assembly: System.Reflection.AssemblyVersion("0.7.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.7.0.0")]
 
 namespace LocalDictation
 {
@@ -52,8 +52,12 @@ namespace LocalDictation
         public string SttPythonw { get; set; }
 
         public bool SetupGuideSeen { get; set; }
+        public bool SetupMicrophoneVerified { get; set; }
+        public bool SetupSpeechVerified { get; set; }
+        public bool SetupInsertionConfirmed { get; set; }
         public string NotesSort { get; set; }
         public string ExportFormat { get; set; }
+        public string WritingStyle { get; set; }
         public bool CheckUpdatesOnStart { get; set; }
         public string UpdateManifestUrl { get; set; }
         public string UpdatePublisherThumbprint { get; set; }
@@ -69,7 +73,7 @@ namespace LocalDictation
         public Config Copy() { var json = new JavaScriptSerializer(); return json.Deserialize<Config>(json.Serialize(this)); }
         public Config()
         {
-            NotesSort = "Newest"; ExportFormat = "PDF";
+            NotesSort = "Newest"; ExportFormat = "PDF"; WritingStyle = "Standard";
             UpdateManifestUrl = UpdatePublisherThumbprint = ""; Theme = "System"; ShowToolbar = true; ShowVoiceIndicator = false; ReduceNoise = true; ReducedMotion = false; NoteMicrophoneId = NoteOutputId = ""; Personalization = new List<PersonalRule>();
             Hotkey = "F8"; NotesHotkey = "Ctrl+Shift+N"; NotesSource = "Microphone"; MeetingSource = "Both"; ToolbarX = ToolbarY = Int32.MinValue; Microphone = DefaultMic; CleanupEnabled = true; AutoPaste = true; LiveWriting = true; PasteMethod = "Auto"; StartWithWindows = false; AutoStartStt = true;
             SttUrl = "http://127.0.0.1:5000";
@@ -77,7 +81,9 @@ namespace LocalDictation
             SttPythonw = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Programs\Python\Python310\pythonw.exe");
         }
 
-        public static string DirectoryPath { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LocalDictation"); } }
+        static string diagnosticDirectory;
+        internal static void DiagnosticDataRoot(string path) { diagnosticDirectory = Path.GetFullPath(path); }
+        public static string DirectoryPath { get { return diagnosticDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LocalDictation"); } }
         public static string FilePath { get { return Path.Combine(DirectoryPath, "config.json"); } }
 
         public static Config Load(string path = null)
@@ -116,6 +122,7 @@ namespace LocalDictation
             if (Personalization == null) Personalization = new List<PersonalRule>();
             if (Array.IndexOf(new[] { "Newest", "Oldest", "Title", "Longest" }, NotesSort) < 0) throw new InvalidDataException("Choose a valid note sort order.");
             if (Array.IndexOf(new[] { "PDF", "Word", "Excel", "CSV" }, ExportFormat) < 0) throw new InvalidDataException("Choose a valid export format.");
+            if (Array.IndexOf(new[] { "Standard", "Chat", "Email", "Code" }, WritingStyle) < 0) throw new InvalidDataException("Choose a valid writing style.");
             if (Array.IndexOf(new[] { "System", "Light", "Dark" }, Theme) < 0) throw new InvalidDataException("Choose a valid appearance.");
             if (DeletedRetentionDays < 0 || DeletedRetentionDays > 3650) throw new InvalidDataException("Choose a valid retention period.");
             Uri updateUri; if (!String.IsNullOrWhiteSpace(UpdateManifestUrl) && (!Uri.TryCreate(UpdateManifestUrl, UriKind.Absolute, out updateUri) || updateUri.Scheme != "https")) throw new InvalidDataException("Update feeds must use HTTPS.");

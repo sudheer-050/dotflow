@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -42,7 +42,7 @@ namespace LocalDictation
         public static bool Healthy(Config config, out string detail)
         {
             if (config != null && !Config.IsLoopback(config.SttUrl)) { detail = "Legacy STT addresses must be loopback; this app transcribes locally."; return false; }
-            detail = Available ? "Vosk Small English is installed (offline, CPU)." : "The small English speech model is missing. Run Local Dictation Setup to install it.";
+            detail = Available ? "Vosk Small English is installed (offline, CPU)." : "The small English speech model is missing. Run Dotflow Setup to install it.";
             return Available;
         }
         public static NativeSpeechStream CreateStream()

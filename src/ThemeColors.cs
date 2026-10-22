@@ -29,9 +29,23 @@ namespace LocalDictation
             var buttonBase = root as ButtonBase; if (buttonBase != null) buttonBase.UseVisualStyleBackColor = false;
             var surface = root as Surface;
             if (surface != null) surface.Fill = Card;
-            root.BackColor = root is TabPage || root is TabControl ? Paper : surface != null ? Color.Transparent : root is TextBoxBase || root is ListBox || root is DataGridView ? Card : root.Parent == null ? Paper : Surface.CanvasColor(root.Parent);
+            root.BackColor = root is TabPage || root is TabControl ? Paper : surface != null ? Color.Transparent : root is TextBoxBase || root is ListBox || root is ListView || root is ComboBox || root is DataGridView ? Card : root.Parent == null ? Paper : Surface.CanvasColor(root.Parent);
             root.ForeColor = root is Label && !root.Font.Bold && root.Font.Size < 11 ? Muted : Ink;
             var label = root as Label; if (label != null) label.UseMnemonic = false;
+            var choice = root as ComboBox;
+            if (choice != null && choice.DrawMode != DrawMode.OwnerDrawFixed)
+            {
+                choice.FlatStyle = FlatStyle.Flat; choice.DrawMode = DrawMode.OwnerDrawFixed; choice.ItemHeight = Math.Max(22, choice.Font.Height + 6);
+                choice.DrawItem += (s, e) => { bool selected = (e.State & DrawItemState.Selected) != 0; using (var brush = new SolidBrush(selected ? Selected : Card)) e.Graphics.FillRectangle(brush, e.Bounds); string value = e.Index >= 0 ? choice.GetItemText(choice.Items[e.Index]) : choice.Text; TextRenderer.DrawText(e.Graphics, value, choice.Font, Rectangle.Inflate(e.Bounds, -4, 0), SystemInformation.HighContrast && selected ? SystemColors.HighlightText : Ink, TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix); if ((e.State & DrawItemState.Focus) != 0) e.DrawFocusRectangle(); };
+                choice.FontChanged += (s, e) => choice.ItemHeight = Math.Max(22, choice.Font.Height + 6);
+            }
+            var list = root as ListView;
+            if (list != null && !list.OwnerDraw)
+            {
+                list.OwnerDraw = true;
+                list.DrawColumnHeader += (s, e) => { using (var brush = new SolidBrush(Button)) e.Graphics.FillRectangle(brush, e.Bounds); TextRenderer.DrawText(e.Graphics, e.Header.Text, list.Font, Rectangle.Inflate(e.Bounds, -6, 0), Ink, TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis); };
+                list.DrawSubItem += (s, e) => { bool selected = e.Item.Selected; using (var brush = new SolidBrush(selected ? Selected : Card)) e.Graphics.FillRectangle(brush, e.Bounds); TextRenderer.DrawText(e.Graphics, e.SubItem.Text, list.Font, Rectangle.Inflate(e.Bounds, -5, 0), SystemInformation.HighContrast && selected ? SystemColors.HighlightText : Ink, TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix); };
+            }
             foreach (Control child in root.Controls) Apply(child, mode);
             var tabs = root as TabControl;
             if (tabs != null && tabs.DrawMode != TabDrawMode.OwnerDrawFixed)

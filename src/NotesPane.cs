@@ -12,9 +12,11 @@ namespace LocalDictation
         readonly NoteStore store;
         Config config;
         readonly List<NoteDocument> documents;
-        readonly TextBox title = Field("Note title"), name = Field("Your name"), written = Field("Written notes"), transcript = Field("Meeting transcript");
+        readonly TextBox title = Field("Note title"), name = Field("Your name"), written = Field("Written notes");
+        readonly RichTextBox transcript = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, DetectUrls = false, BorderStyle = BorderStyle.None, WordWrap = true, AccessibleName = "Original conversation" };
+        Panel recordingPanel; TableLayoutPanel newRecordingActions, captureTransport;
         readonly ComboBox mode = Choice(), microphone = Choice(), output = Choice();
-        readonly TabControl tabs = new TabControl { Dock = DockStyle.Fill };
+        readonly TabControl tabs = new AppTabs { Dock = DockStyle.Fill };
         readonly ListBox history = new ListBox { Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, IntegralHeight = false };
         readonly HubButton record = new HubButton { Text = "Start note", Primary = true, Dock = DockStyle.Fill };
         readonly HubButton retry = new HubButton { Text = "Retry transcription", Dock = DockStyle.Fill };
@@ -67,12 +69,12 @@ namespace LocalDictation
             var workspace = Grid(1, 6); workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 48)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 30)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 44)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 30)); workspace.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 40)); sheet.Controls.Add(workspace);
             var heading = Grid(2, 1); heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 106)); heading.Controls.Add(noteTitle, 0, 0); heading.Controls.Add(editDetails, 1, 0); workspace.Controls.Add(heading, 0, 0); workspace.Controls.Add(noteDetails, 0, 1);
-            var transport = Grid(4, 1); transport.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100)); transport.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); transport.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70)); transport.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
+            var transport = Grid(4, 1); captureTransport = transport; transport.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100)); transport.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); transport.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70)); transport.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
             transport.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            transport.Controls.Add(record, 0, 0); var nextCapture = new Panel { Dock = DockStyle.Fill }; nextCapture.Controls.Add(mode); mode.Dock = DockStyle.Bottom; nextCapture.Controls.Add(new Label { Text = "Next recording", Dock = DockStyle.Top, Height = 16, Font = new Font("Segoe UI", 7), ForeColor = ThemeColors.Muted }); transport.Controls.Add(nextCapture, 1, 0); var devices = devicesButton; transport.Controls.Add(devices, 2, 0); transport.Controls.Add(pauseNote, 3, 0); workspace.Controls.Add(transport, 0, 2);
+            transport.Controls.Add(record, 0, 0); var nextCapture = new Panel { Dock = DockStyle.Fill }; nextCapture.Controls.Add(mode); mode.Dock = DockStyle.Bottom; nextCapture.Controls.Add(new Label { Text = "Next recording", Dock = DockStyle.Top, Height = 16, Font = new Font("Segoe UI", 7), ForeColor = ThemeColors.Muted }); transport.Controls.Add(nextCapture, 1, 0); var devices = devicesButton; transport.Controls.Add(devices, 2, 0); transport.Controls.Add(pauseNote, 3, 0); recordingPanel = new Panel { Dock = DockStyle.Fill }; recordingPanel.Controls.Add(transport); newRecordingActions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 }; newRecordingActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); newRecordingActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); var personal = new HubButton { Text = "Record a personal note", Dock = DockStyle.Fill }; var meetingButton = new HubButton { Text = "Record a meeting", Dock = DockStyle.Fill }; personal.Click += (s, e) => Toggle(preferredSource, "Note"); meetingButton.Click += (s, e) => Toggle(config.MeetingSource, "Meeting"); newRecordingActions.Controls.Add(personal); newRecordingActions.Controls.Add(meetingButton); recordingPanel.Controls.Add(newRecordingActions); workspace.Controls.Add(recordingPanel, 0, 2);
             workspace.Controls.Add(status, 0, 3);
             var noteTab = new TabPage("My notes"); var transcriptTab = new TabPage("Conversation (read-only)"); tabs.TabPages.Add(noteTab); tabs.TabPages.Add(transcriptTab);
-            written.Multiline = transcript.Multiline = true; written.AcceptsReturn = written.AcceptsTab = true; written.ScrollBars = transcript.ScrollBars = ScrollBars.Vertical; transcript.ReadOnly = true;
+            written.Multiline = true; written.AcceptsReturn = written.AcceptsTab = true; written.ScrollBars = ScrollBars.Vertical; transcript.ScrollBars = RichTextBoxScrollBars.Vertical; transcript.ReadOnly = true;
             written.BorderStyle = transcript.BorderStyle = BorderStyle.None; written.BackColor = transcript.BackColor = Color.White;
             noteTab.Padding = transcriptTab.Padding = new Padding(12); noteTab.Controls.Add(written); transcriptTab.Controls.Add(transcript); workspace.Controls.Add(tabs, 0, 4);
             var actions = Grid(3, 1); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100)); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
@@ -129,7 +131,7 @@ namespace LocalDictation
             if (populating) return;
             SaveEdits(); player.Dispose(); playerOpen = false; uiError = ""; selected = document; if (document != null) writingFresh = false; populating = true;
             title.Text = document == null ? "" : document.Title; name.Text = document == null ? store.SavedName : document.UserName;
-            written.Text = document == null ? "" : document.WrittenNotes; transcript.Text = document == null ? "" : NoteStore.Transcript(document);
+            written.Text = document == null ? "" : document.WrittenNotes; DisplayConversation(document == null ? "" : NoteStore.Transcript(document)); LoadAudioSources(document);
             history.SelectedItem = document; excerptText.Text = document == null ? "" : document.Summary; populating = false; RefreshState();
         }
         public void UpdateConfig(Config value) { config = value; preferredSource = value.NotesSource; if (!Busy) { populating = true; mode.SelectedIndex = Array.IndexOf(new[] { "Microphone", "Computer", "Both" }, value.NotesSource); populating = false; } }
@@ -177,7 +179,7 @@ namespace LocalDictation
                 if (!saveTimer.Enabled) { populating = true; name.Text = selected.UserName; title.Text = selected.Title; populating = false; }
                 int selectedIndex = history.Items.IndexOf(selected); if (selectedIndex >= 0) { populating = true; history.Items[selectedIndex] = selected; populating = false; }
                 string value = NoteStore.Transcript(selected);
-                if (transcript.Text != value) { transcript.Text = value; transcript.SelectionStart = transcript.TextLength; transcript.ScrollToCaret(); }
+                if (transcript.Text.Replace("\r", "") != value.Replace("\r", "")) { DisplayConversation(value); transcript.SelectionStart = transcript.TextLength; transcript.ScrollToCaret(); }
                 RefreshState();
             })); }
             catch (InvalidOperationException) { }
@@ -185,6 +187,7 @@ namespace LocalDictation
         void RefreshState()
         {
             bool busy = Busy; bool recording = Recording;
+            bool configuring = selected == null || recording && ReferenceEquals(selected, session.Document); newRecordingActions.Visible = !configuring; newRecordingActions.Enabled = !busy; captureTransport.Visible = configuring; if (configuring) captureTransport.BringToFront(); else newRecordingActions.BringToFront();
             record.Text = recording ? "Stop & save" : "Start note"; record.Enabled = recording || !busy;
             mode.Enabled = microphone.Enabled = output.Enabled = !busy; history.Enabled = true;
             if (!busy) { microphone.Enabled = mode.SelectedIndex != 1; output.Enabled = mode.SelectedIndex != 0; }
@@ -232,17 +235,28 @@ namespace LocalDictation
         void ShowDevices()
         {
             if (Busy) return;
-            string micId = microphone.SelectedItem == null ? config.NoteMicrophoneId : ((AudioEndpoint)microphone.SelectedItem).Id;
-            string outId = output.SelectedItem == null ? config.NoteOutputId : ((AudioEndpoint)output.SelectedItem).Id;
-            try { microphone.Items.Clear(); output.Items.Clear(); microphone.Items.AddRange(CoreAudio.List(false).Cast<object>().ToArray()); output.Items.AddRange(CoreAudio.List(true).Cast<object>().ToArray()); microphone.SelectedIndex = output.SelectedIndex = 0; SelectEndpoint(microphone, micId); SelectEndpoint(output, outId); }
-            catch (Exception ex) { uiError = ex.Message; return; }
-            using (var dialog = new Form { Text = "Audio devices", Icon = AppLogo.Icon, ClientSize = new Size(520, 170), Font = Font, FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, MaximizeBox = false, AutoScaleMode = AutoScaleMode.None })
+            using (var dialog = DialogUi.Create("Recording devices", new Size(620, 370)))
             {
-                var grid = Grid(2, 3); grid.Padding = new Padding(18); grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110)); grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); for (int i = 0; i < 3; i++) grid.RowStyles.Add(new RowStyle(SizeType.Percent, 33));
-                dialog.Controls.Add(grid); grid.Controls.Add(Caption("Microphone"), 0, 0); grid.Controls.Add(microphone, 1, 0); grid.Controls.Add(Caption("Computer"), 0, 1); grid.Controls.Add(output, 1, 1);
-                var done = new HubButton { Text = "Done", Primary = true, Dock = DockStyle.Fill }; grid.Controls.Add(done, 1, 2); done.Click += (sender, args) => dialog.Close();
-                using (var graphics = dialog.CreateGraphics()) { float scale = graphics.DpiX / 96f; if (scale != 1) dialog.Scale(new SizeF(scale, scale)); }
-                dialog.ShowDialog(FindForm()); config.NoteMicrophoneId = microphone.SelectedItem == null ? "" : ((AudioEndpoint)microphone.SelectedItem).Id; config.NoteOutputId = output.SelectedItem == null ? "" : ((AudioEndpoint)output.SelectedItem).Id; config.Save(); grid.Controls.Remove(microphone); grid.Controls.Remove(output);
+                var grid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6 };
+                grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                for (int i = 0; i < 6; i++) grid.RowStyles.Add(new RowStyle(i == 4 ? SizeType.Percent : SizeType.AutoSize, i == 4 ? 100 : 0));
+                var selectedMic = Choice(); var selectedOutput = Choice();
+                try { selectedMic.Items.AddRange(CoreAudio.List(false).Cast<object>().ToArray()); selectedOutput.Items.AddRange(CoreAudio.List(true).Cast<object>().ToArray()); selectedMic.SelectedIndex = selectedOutput.SelectedIndex = 0; SelectEndpoint(selectedMic, config.NoteMicrophoneId); SelectEndpoint(selectedOutput, config.NoteOutputId); }
+                catch (Exception ex) { uiError = "Devices unavailable: " + ex.Message; return; }
+                grid.Controls.Add(DialogUi.Text("Your microphone"), 0, 0); grid.Controls.Add(selectedMic, 0, 1);
+                grid.Controls.Add(DialogUi.Text("Computer audio - choose the output used by your call"), 0, 2); grid.Controls.Add(selectedOutput, 0, 3);
+                grid.Controls.Add(DialogUi.Text("These devices apply to new and resumed recordings. Cancel or close this window to keep your current choices."), 0, 4);
+                var footer = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
+                footer.Controls.Add(DialogUi.Button("Apply devices", (sender, args) =>
+                {
+                    try { string micId = ((AudioEndpoint)selectedMic.SelectedItem).Id, outputId = ((AudioEndpoint)selectedOutput.SelectedItem).Id;
+                        var draft = config.Copy(); draft.NoteMicrophoneId = micId; draft.NoteOutputId = outputId; draft.Save();
+                        config.NoteMicrophoneId = micId; config.NoteOutputId = outputId;
+                        microphone.Items.Clear(); output.Items.Clear(); microphone.Items.AddRange(selectedMic.Items.Cast<object>().ToArray()); output.Items.AddRange(selectedOutput.Items.Cast<object>().ToArray()); SelectEndpoint(microphone, micId); SelectEndpoint(output, outputId); dialog.DialogResult = DialogResult.OK; dialog.Close();
+                    } catch (Exception ex) { MessageBox.Show(dialog, ex.Message, "Could not save devices"); }
+                }, true));
+                var cancel = DialogUi.Button("Cancel", (sender, args) => dialog.Close()); cancel.DialogResult = DialogResult.Cancel; dialog.CancelButton = cancel; footer.Controls.Add(cancel); grid.Controls.Add(footer, 0, 5);
+                dialog.Controls.Add(grid); ThemeColors.Apply(dialog, config.Theme); dialog.ShowDialog(FindForm());
             }
         }
         void ShowFilesMenu(Control anchor)
@@ -250,7 +264,7 @@ namespace LocalDictation
             var menu = new ContextMenuStrip();
             var speakers = menu.Items.Add("Correct speaker labels..."); speakers.Enabled = selected != null && !(Busy && ReferenceEquals(selected, session.Document)); speakers.Click += (s, e) => EditSpeakerLabels();
             var resume = menu.Items.Add("Resume this recording"); resume.Enabled = selected != null && selected.Segments.Count > 0 && !Busy; resume.Click += (s, e) => ResumeSelected();
-            menu.Items.Add("Recently deleted & storage", null, (s, e) => { if (!Busy) { NotesStorageDialog.Show(FindForm(), store, config); ReloadLibrary(); } });
+            var storageItem = menu.Items.Add("Recently deleted & storage", null, (s, e) => { if (!Busy) { NotesStorageDialog.Show(FindForm(), store, config); ReloadLibrary(); } });
             var open = menu.Items.Add("Open conversation (read-only)"); open.Enabled = selected != null;
             open.Click += (s, e) =>
             {
@@ -269,22 +283,19 @@ namespace LocalDictation
                 item.Click += (s, e) => { try { Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true }); } catch (Exception ex) { uiError = ex.Message; RefreshState(); } };
             }
             menu.Items.Add(audio);
-            menu.Items.Add("Show files", null, (s, e) => OpenFolder());
+            var folderItem = menu.Items.Add("Show files", null, (s, e) => OpenFolder());
             var export = menu.Items.Add("Export..."); export.Enabled = selected != null && !(Busy && ReferenceEquals(selected, session.Document)); export.Click += (s, e) => ShowExportDialog(); menu.Items.Add(new ToolStripSeparator());
             var delete = menu.Items.Add("Delete note and recordings"); delete.Enabled = selected != null && !Busy;
             delete.Click += (s, e) => DeleteSelected();
+            foreach (var item in new ToolStripItem[] { speakers, resume, storageItem, open, audio, folderItem, export, delete }) menu.Items.Remove(item);
+            foreach (var separator in menu.Items.OfType<ToolStripSeparator>().ToArray()) { menu.Items.Remove(separator); separator.Dispose(); }
+            var review = new ToolStripMenuItem("Review"); review.DropDownItems.Add(open); review.DropDownItems.Add(speakers);
+            var recordings = new ToolStripMenuItem("Recording"); recordings.DropDownItems.Add(resume); recordings.DropDownItems.Add(audio);
+            var chooseDevices = recordings.DropDownItems.Add("Choose recording devices...", null, (s, e) => ShowDevices()); chooseDevices.Enabled = !Busy;
+            recordings.DropDownItems.Add("Check meeting audio", null, (s, e) => ShowRecordingHelp());
+            var manage = new ToolStripMenuItem("Manage"); manage.DropDownItems.Add(folderItem); manage.DropDownItems.Add(storageItem); manage.DropDownItems.Add(new ToolStripSeparator()); manage.DropDownItems.Add(delete);
+            menu.Items.Add(review); menu.Items.Add(recordings); menu.Items.Add(export); menu.Items.Add(manage);
             menu.Closed += (s, e) => menu.Dispose(); menu.Show(anchor, new Point(0, anchor.Height));
-        }
-        void Export(string extension)
-        {
-            if (selected == null || Busy) return;
-            SaveEdits();
-            using (var dialog = new SaveFileDialog { Title = "Export conversation", Filter = extension.ToUpperInvariant() + " file|*." + extension, DefaultExt = extension, AddExtension = true, FileName = String.Concat(selected.Title.Select(c => System.IO.Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)) })
-            {
-                if (dialog.ShowDialog(FindForm()) != DialogResult.OK) return;
-                try { NoteExport.Save(selected, dialog.FileName); uiError = "Exported: " + dialog.FileName; RefreshState(); }
-                catch (Exception ex) { uiError = "Export failed: " + ex.Message; RefreshState(); }
-            }
         }
         void DeleteSelected()
         {
@@ -307,7 +318,7 @@ namespace LocalDictation
         }
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { saveTimer.Stop(); SaveEdits(); pulse.Stop(); pulse.Dispose(); saveTimer.Dispose(); if (session != null) session.Dispose(); player.Dispose(); microphone.Dispose(); output.Dispose(); title.Dispose(); name.Dispose(); }
+            if (disposing) { saveTimer.Stop(); SaveEdits(); pulse.Stop(); pulse.Dispose(); saveTimer.Dispose(); if (session != null) session.Dispose(); player.Dispose(); reviewHints.Dispose(); microphone.Dispose(); output.Dispose(); title.Dispose(); name.Dispose(); }
             base.Dispose(disposing);
         }
     }

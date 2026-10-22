@@ -25,6 +25,6 @@ jobs:
         with:
           name: LocalDictation-Windows-preview
           path: |
-            dist/LocalDictation-Setup-0.6.1.exe
+            dist/Dotflow-Setup-0.7.0.exe
             dist/update.json
-            dist/RELEASE_NOTES-0.6.1.md
+            dist/RELEASE_NOTES-0.7.0.md

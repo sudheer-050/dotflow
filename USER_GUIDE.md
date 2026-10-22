@@ -1,8 +1,8 @@
-# Local Dictation 0.6.1 user guide
+# Dotflow 0.7.0 user guide
 
 ## Install and start
 
-Run `dist/LocalDictation-Setup-0.6.1.exe`. First installation downloads the English model/runtime and needs internet; speech later works offline. Exit the old app if requested. Setup reports successful installation separately and offers Open app. Start opens the hub; closing it leaves the app running. Exit in the Windows system tray quits it.
+Run `dist/Dotflow-Setup-0.7.0.exe`. First installation downloads the English model/runtime and needs internet; speech later works offline. Exit the old app if requested. Setup reports successful installation separately and offers Open app. Start opens the hub; closing it leaves the app running. Exit in the Windows system tray quits it.
 
 Home offers Dictate, New note, Record meeting and recent work. First-run guidance includes permission and practice steps. Preferences > Recording has microphone testing, Check speech engine and setup repair.
 
@@ -34,7 +34,7 @@ Local review creates a source-quote overview and possible decisions/follow-ups. 
 
 ## Export, storage and recovery
 
-Export previews Conversation only, Personal notes only or Full record. Participant metadata is optional; names spoken inside the conversation remain. Choose PDF, Word, Excel or CSV; the last successful format is remembered. Saved files can be opened immediately. PDF supports text search/copy and contains reading-order structure tags. Word/Excel editing restrictions can be removed externally; CSV is editable. These are not tamper-proof originals.
+Export previews Conversation only, Personal notes only or Full record. Participant metadata is optional; names spoken inside the conversation remain. Export as a view-oriented PDF; editable Word, Excel and CSV exports are no longer offered. Saved files can be opened immediately. PDF supports text search/copy and contains reading-order structure tags. External PDF copies can still be altered with specialist tools. These are not tamper-proof originals.
 
 More > Delete moves the record/audio to Recently deleted. Preferences > Storage shows app/model, recordings, deleted items and cache. Restore brings records back; permanent deletion needs confirmation. Retention is opt-in, with Forever as default. Backup creates a ZIP of active notes/audio; Restore backup skips existing IDs. Deleted records, preferences and the speech model are excluded.
 
@@ -51,3 +51,6 @@ Uninstall through Windows Installed apps. Data is retained by default. Downloade
 - Updates unavailable: no signed public update feed is configured. About shows the version; use a newer trusted full installer when available.
 
 This release is Windows x64. Real microphone, meeting, playback and cross-app operation still need desktop validation. BACKLOG_STATUS.md tracks remaining audit work.
+
+
+Version 0.7.0 adds explicit Standard, Chat, Email and Code writing styles, a searchable Words & snippets editor, and user-controlled Record/Stop on Practice. Closing recording-device selection without Apply cancels changes. Setup records successful microphone and recognition checks, then asks you to confirm typing into another app. Conversations remain read-only; titles, participant labels and personal notes can be edited separately.

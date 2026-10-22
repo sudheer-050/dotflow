@@ -66,7 +66,7 @@ namespace LocalDictation
                 {
                     var manifest = await FetchManifest(config); var version = new Version(manifest.Version); var uri = new Uri(manifest.InstallerUrl);
                     if (version <= typeof(Config).Assembly.GetName().Version) { MessageBox.Show(owner, "You have the latest version in this feed.", "Up to date"); return; }
-                    if (MessageBox.Show(owner, "Download and verify Local Dictation " + version + "? The installer will ask before updating the app.", "Update available", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+                    if (MessageBox.Show(owner, "Download and verify Dotflow " + version + "? The installer will ask before updating the app.", "Update available", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
                     string folder = Path.Combine(Config.DirectoryPath, "Updates"); Directory.CreateDirectory(folder); target = Path.Combine(folder, "Setup-" + Guid.NewGuid().ToString("N") + ".exe");
                     await client.DownloadFileTaskAsync(uri, target);
                     bool valid = await Task.Run(() => { using (var hash = SHA256.Create()) using (var input = File.OpenRead(target)) if (!BitConverter.ToString(hash.ComputeHash(input)).Replace("-", "").Equals(manifest.Sha256, StringComparison.OrdinalIgnoreCase)) return false; return Trusted(target, config.UpdatePublisherThumbprint); });

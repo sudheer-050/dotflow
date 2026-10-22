@@ -1,4 +1,4 @@
-﻿# Exercise the real renderer without recording audio or sending keystrokes.
+# Exercise the real renderer without recording audio or sending keystrokes.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Add-Type -AssemblyName System.Windows.Forms,System.Drawing

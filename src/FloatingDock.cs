@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
@@ -24,7 +24,7 @@ namespace LocalDictation
     // A non-activating controller: clicking Write keeps the user's original text field focused.
     sealed class FloatingDock : Form
     {
-        readonly DockButton write = new DockButton { Text = "Dictate", AccessibleName = "Toggle dictation" }, note = new DockButton { Text = "Note", AccessibleName = "Toggle personal note" }, meeting = new DockButton { Text = "Meeting", AccessibleName = "Toggle meeting note" }, more = new DockButton { Text = "Open app", AccessibleName = "Open Local Dictation" };
+        readonly DockButton write = new DockButton { Text = "Dictate", AccessibleName = "Toggle dictation" }, note = new DockButton { Text = "Note", AccessibleName = "Toggle personal note" }, meeting = new DockButton { Text = "Meeting", AccessibleName = "Toggle meeting note" }, more = new DockButton { Text = "Open app", AccessibleName = "Open Dotflow" };
         readonly Panel grip = new Panel { Cursor = Cursors.SizeAll };
         readonly Label status = new Label { Text = "Ready · hold the dots to move", ForeColor = Color.FromArgb(170, 177, 185), AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
         readonly ToolTip hints = new ToolTip { InitialDelay = 200, ReshowDelay = 100, ShowAlways = true };
@@ -36,13 +36,14 @@ namespace LocalDictation
         Point restingPosition;
         Point dragStart, locationStart;
         public Action ToggleWrite, ToggleNote, ToggleMeeting, OpenApp, CancelWrite;
-        bool cancelAvailable, reducedMotion;
+        bool cancelAvailable, reducedMotion, enabled = true;
+        public string VisibilityDescription { get { return !enabled ? "Hidden in preferences" : snoozedUntil != DateTime.MinValue ? "Hidden until " + snoozedUntil.ToString("t") : "Ready on the screen edge"; } }
         DateTime snoozedUntil;
         readonly Timer fade = new Timer { Interval = 20 };
         public Action<Point> PositionSaved;
         public FloatingDock()
         {
-            Text = "Local Dictation toolbar"; Icon = AppLogo.Icon; FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; TopMost = true; AutoScaleMode = AutoScaleMode.None; BackColor = Color.FromArgb(25, 27, 30); ClientSize = new Size(326, 72); StartPosition = FormStartPosition.Manual;
+            Text = "Dotflow toolbar"; Icon = AppLogo.Icon; FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; TopMost = true; AutoScaleMode = AutoScaleMode.None; BackColor = Color.FromArgb(25, 27, 30); ClientSize = new Size(326, 72); StartPosition = FormStartPosition.Manual;
             grip.Paint += (s, e) =>
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -65,10 +66,10 @@ namespace LocalDictation
                 button.Font = new Font("Segoe UI", 8);
 
             }
-            hints.SetToolTip(write, "Dictation"); hints.SetToolTip(note, "Personal notes"); hints.SetToolTip(meeting, "Meeting notes"); hints.SetToolTip(more, "Open Local Dictation");
+            hints.SetToolTip(write, "Dictation"); hints.SetToolTip(note, "Personal notes"); hints.SetToolTip(meeting, "Meeting notes"); hints.SetToolTip(more, "Open Dotflow");
             hover.Tick += (s, e) =>
             {
-                if (snoozedUntil != DateTime.MinValue) { if (DateTime.Now >= snoozedUntil) { snoozedUntil = DateTime.MinValue; Show(); } return; }
+                if (snoozedUntil != DateTime.MinValue) { if (DateTime.Now >= snoozedUntil) { snoozedUntil = DateTime.MinValue; if (enabled) Show(); } return; }
                 if (!Visible || dragging) return;
                 if (Bounds.Contains(Cursor.Position)) { outsideTicks = 0; SetExpanded(true); }
                 else if (++outsideTicks >= 5) SetExpanded(false);
@@ -77,10 +78,10 @@ namespace LocalDictation
             Microsoft.Win32.SystemEvents.DisplaySettingsChanged += DisplaysChanged;
             SetExpanded(false, true); hover.Start();
         }
-        public void Reveal() { snoozedUntil = DateTime.MinValue; Show(); }
-        public void SetVisibility(bool enabled) { snoozedUntil = DateTime.MinValue; if (enabled) Show(); else Hide(); }
-        public void Configure(bool reduced) { reducedMotion = reduced; }
-        public void Snooze() { snoozedUntil = DateTime.Now.AddHours(1); Hide(); }
+        public void Reveal() { enabled = true; snoozedUntil = DateTime.MinValue; Show(); }
+        public void SetVisibility(bool value) { enabled = value; snoozedUntil = DateTime.MinValue; if (enabled) Show(); else Hide(); }
+        public void Configure(bool reduced) { reducedMotion = reduced; if (reduced) { fade.Stop(); Opacity = 1; } }
+        public void Snooze() { if (!enabled) return; snoozedUntil = DateTime.Now.AddHours(1); Hide(); }
         void DisplaysChanged(object sender, EventArgs e) { if (!IsDisposed && IsHandleCreated) BeginInvoke((Action)(() => RestorePosition(restingPosition.X, restingPosition.Y))); }
         int Px(int value) { return (int)Math.Round(value * dpi); }
         internal void SetExpanded(bool value, bool force = false)
@@ -167,7 +168,7 @@ namespace LocalDictation
         public void UpdateState(bool writing, bool processing, bool notesRecording, bool noteBusy, bool isMeeting, string message)
         {
             write.Text = processing ? "Refining" : "Dictate"; note.Text = "Note"; meeting.Text = "Meeting"; more.Text = "Open app";
-            cancelAvailable = writing || processing; more.Glyph = cancelAvailable ? "\uE711" : "\uE8A7"; more.AccessibleName = cancelAvailable ? "Cancel dictation" : "Open Local Dictation"; hints.SetToolTip(more, cancelAvailable ? "Cancel dictation" : "Open Local Dictation");
+            cancelAvailable = writing || processing; more.Glyph = cancelAvailable ? "\uE711" : "\uE8A7"; more.AccessibleName = cancelAvailable ? "Cancel dictation" : "Open Dotflow"; hints.SetToolTip(more, cancelAvailable ? "Cancel dictation" : "Open Dotflow");
             write.Active = writing; note.Active = notesRecording && !isMeeting; meeting.Active = notesRecording && isMeeting;
             write.Enabled = !noteBusy && !processing; note.Enabled = !writing && !processing && (!noteBusy || notesRecording && !isMeeting); meeting.Enabled = !writing && !processing && (!noteBusy || notesRecording && isMeeting);
             hints.SetToolTip(write, writing ? "Stop dictation" : processing ? "Refining text" : "Dictation");

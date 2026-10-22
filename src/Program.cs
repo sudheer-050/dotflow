@@ -25,7 +25,7 @@ namespace LocalDictation
                 }
                 Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
                 try { Application.Run(new DictationApp(!background)); return 0; }
-                catch (Exception ex) { MessageBox.Show(ex.Message, "Local Dictation could not start", MessageBoxButtons.OK, MessageBoxIcon.Error); return 1; }
+                catch (Exception ex) { MessageBox.Show(ex.Message, "Dotflow could not start", MessageBoxButtons.OK, MessageBoxIcon.Error); return 1; }
             }
         }
 
@@ -37,6 +37,10 @@ namespace LocalDictation
             {
                 switch (args[0])
                 {
+                    case "--ux-smoke":
+                        UxVerification.Run(args[1]); return 0;
+                    case "--format-text":
+                        Console.Write(WritingFormat.Compose(new Config { WritingStyle = args[1] }, args[2])); return 0;
                     case "--validate-update":
                         ReleaseUpdates.ParseManifest(System.IO.File.ReadAllText(args[1])); Console.Write("valid"); return 0;
                     case "--verify-update-signature":
@@ -60,7 +64,7 @@ namespace LocalDictation
                                 if (Math.Max(toolbar.Width, toolbar.Height) >= 120 || Math.Min(toolbar.Width, toolbar.Height) >= 40) throw new Exception("Resting toolbar is too large.");
                                 if (args[0] == "--toolbar-preview") CaptureHub(toolbar, System.IO.Path.ChangeExtension(args[1], ".collapsed.png"));
                                 toolbar.SetExpanded(true); Application.DoEvents();
-                                foreach (var button in toolbar.Controls.OfType<Button>().Where(b => b.AccessibleName != "Open Local Dictation"))
+                                foreach (var button in toolbar.Controls.OfType<Button>().Where(b => b.AccessibleName != "Open Dotflow"))
                                 {
                                     IntPtr point = (IntPtr)((button.Height / 2 << 16) | button.Width / 2);
                                     Native.SendMessage(button.Handle, 0x201, (IntPtr)1, point); Native.SendMessage(button.Handle, 0x202, IntPtr.Zero, point); Application.DoEvents();
@@ -112,7 +116,7 @@ namespace LocalDictation
                     case "--live-writing-smoke":
                         {
                             Application.EnableVisualStyles();
-                            using (var form = new Form { Text = "Local Dictation input test" })
+                            using (var form = new Form { Text = "Dotflow input test" })
                             using (var field = new TextBox { Dock = DockStyle.Fill, Text = "Keep this. ", Multiline = true })
                             {
                                 form.Controls.Add(field); form.Show(); form.Activate(); field.Focus(); field.SelectionStart = field.TextLength; Application.DoEvents();
@@ -352,7 +356,7 @@ namespace LocalDictation
                                 f.Show(); Application.DoEvents();
                                 foreach (var page in new[] { "Home", "Notes", "Playground", "Preferences", "Help" })
                                 {
-                                    f.Controls.OfType<Panel>().SelectMany(p => p.Controls.OfType<Button>()).Single(b => b.Text == page).PerformClick();
+                                    f.Controls.OfType<Panel>().SelectMany(p => p.Controls.OfType<Button>()).Single(b => b.AccessibleName == page).PerformClick();
                                     f.Refresh(); Application.DoEvents();
                                     if (f.CurrentPage != page) throw new InvalidOperationException("Navigation failed");
                                     if (args[0] == "--hub-preview")

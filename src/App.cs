@@ -142,10 +142,11 @@ namespace LocalDictation
         void ToggleNotes(string mode, string kind = "Note")
         {
             if (state.Current != AppState.Idle) return;
-            EnsureHub(); dock.Show(); hub.ToggleNote(mode, kind); UpdateDock();
+            EnsureHub(); hub.ToggleNote(mode, kind); UpdateDock();
         }
         void UpdateDock()
         {
+            if (hub != null && !hub.IsDisposed) { hub.SetRecoveryAvailable(recovery.HasWork); hub.SetToolbarStatus(dock.VisibilityDescription); }
             bool recording = hub != null && hub.IsNoteRecording; bool busy = hub != null && hub.NoteBusy;
             string label = state.Current == AppState.Recording ? "Writing live - click Stop to refine" : state.Current == AppState.Processing ? "Refining your words..." : recording ? (hub.Notes.Document != null && hub.Notes.Document.Kind == "Meeting" ? "Recording meeting" : "Recording note") : busy ? "Saving your note..." : "Ready - drag the grip to move";
             if (recording && hub.Notes.Document != null) label += " " + TimeSpan.FromSeconds(hub.Notes.RecordingSeconds).ToString(@"mm\:ss") + " - click Stop to save";
@@ -164,11 +165,11 @@ namespace LocalDictation
         {
             overlay.InputLevel = () => recorder != null ? recorder.SoundLevel : hub != null ? hub.NoteSoundLevel : 0;
             try { config = Config.Load(); }
-            catch (InvalidDataException ex) { config = new Config(); MessageBox.Show(ex.Message + " Defaults will be used.", "Local Dictation"); }
+            catch (InvalidDataException ex) { config = new Config(); MessageBox.Show(ex.Message + " Defaults will be used.", "Dotflow"); }
             overlay.ReducedMotion = config.ReducedMotion;
             var menu = new ContextMenuStrip();
-            menu.Items.Add("Open Local Dictation", null, (s, e) => ShowHub("Home"));
-            menu.Items.Add("Show floating toolbar", null, (s, e) => dock.Reveal());
+            menu.Items.Add("Open Dotflow", null, (s, e) => ShowHub("Home"));
+            menu.Items.Add("Show floating toolbar", null, (s, e) => { config.ShowToolbar = true; dock.SetVisibility(true); try { config.Save(); } catch (Exception ex) { ReportIssue("Toolbar shown, but its preference could not be saved: " + ex.Message); } });
             menu.Items.Add("Recover last dictation", null, (s, e) => ShowRecovery());
             menu.Items.Add("Issues & recovery", null, (s, e) => { ShowHub("Home"); if (hub != null) hub.ShowIssues(); });
             menu.Items.Add("Hide toolbar for 1 hour", null, (s, e) => dock.Snooze());
@@ -176,20 +177,20 @@ namespace LocalDictation
             menu.Items.Add("Preferences", null, (s, e) => ShowHub("Preferences"));
             menu.Items.Add("Stop and save note", null, (s, e) => { if (hub != null && hub.IsNoteRecording) hub.ToggleNote(hub.NoteMode); });
             menu.Items.Add("Exit", null, (s, e) => ExitThread());
-            tray = new NotifyIcon { Icon = AppLogo.Icon, Text = "Local Dictation 0.6.1 - hold " + config.Hotkey, Visible = true, ContextMenuStrip = menu };
+            tray = new NotifyIcon { Icon = AppLogo.Icon, Text = "Dotflow 0.7.0 - hold " + config.Hotkey, Visible = true, ContextMenuStrip = menu };
             dock.RestorePosition(config.ToolbarX, config.ToolbarY);
             dock.Configure(config.ReducedMotion); dock.CancelWrite = Cancel;
             dock.ToggleWrite = () => { if (state.Current == AppState.Recording) StopRecording(); else StartRecording(); UpdateDock(); };
             dock.ToggleNote = () => { EnsureHub(); ToggleNotes(hub.PreferredNoteSource, "Note"); }; dock.ToggleMeeting = () => ToggleNotes(config.MeetingSource, "Meeting"); dock.OpenApp = () => ShowHub("Notes");
             dock.PositionSaved = position => { config.ToolbarX = position.X; config.ToolbarY = position.Y; try { config.Save(); } catch { } };
-            if (config.ShowToolbar) dock.Show();
+            dock.SetVisibility(config.ShowToolbar);
             noteStatus.Tick += (s, e) =>
             {
                 UpdateDock();
                 bool recordingNote = hub != null && hub.IsNoteRecording;
                 if (config.ShowVoiceIndicator && recordingNote && !noteIndicator && state.Current == AppState.Idle) { overlay.Display("Recording from " + hub.NoteMode + " notes", Color.FromArgb(45, 120, 75)); noteIndicator = true; }
                 if (!recordingNote && noteIndicator) { if (state.Current == AppState.Idle) overlay.Hide(); noteIndicator = false; }
-                tray.Text = hub != null && hub.IsNoteRecording ? "Local Dictation - recording " + hub.NoteMode + " notes" : "Local Dictation - hold " + (config.Hotkey.Length > 30 ? config.Hotkey.Substring(0, 30) : config.Hotkey); }; noteStatus.Start();
+                tray.Text = hub != null && hub.IsNoteRecording ? "Dotflow - recording " + hub.NoteMode + " notes" : "Dotflow - hold " + (config.Hotkey.Length > 30 ? config.Hotkey.Substring(0, 30) : config.Hotkey); }; noteStatus.Start();
             tray.DoubleClick += (s, e) => ShowHub("Home");
             SetShortcutBindings();
             liveTimer.Tick += (s, e) => LiveTick();
@@ -231,7 +232,7 @@ namespace LocalDictation
         void Prewarm()
         {
             string problem = SpeechEngine.EnsureRunning(config, 150); engineReadiness = problem ?? "Ready - English speech stays on this device."; PostUi(() => { if (hub != null && !hub.IsDisposed) hub.SetReadiness(engineReadiness); });
-            if (problem != null && tray.Visible) PostUi(() => { ReportIssue(problem); tray.ShowBalloonTip(6000, "Local Dictation", problem, ToolTipIcon.Warning); });
+            if (problem != null && tray.Visible) PostUi(() => { ReportIssue(problem); tray.ShowBalloonTip(6000, "Dotflow", problem, ToolTipIcon.Warning); });
         }
 
         void StartRecording()
@@ -307,7 +308,7 @@ namespace LocalDictation
         void Finish(string raw)
         {
             if (state.Current != AppState.Processing) return;
-            string text = PersonalRule.Apply(config, config.CleanupEnabled ? TextCleanup.Clean(raw) : raw.Trim());
+            string text = WritingFormat.Compose(config, raw);
             recovery.Text = text;
             lastRaw = raw; lastCleaned = text;
             if (text.Length == 0) { Fail("No speech was recognized."); return; }
@@ -332,7 +333,7 @@ namespace LocalDictation
         }
         void ShowRecovery()
         {
-            if (!recovery.HasWork) { tray.ShowBalloonTip(3000, "Local Dictation", "There is no unfinished dictation to recover.", ToolTipIcon.Info); return; }
+            if (!recovery.HasWork) { tray.ShowBalloonTip(3000, "Dotflow", "There is no unfinished dictation to recover.", ToolTipIcon.Info); return; }
             if (recoveryWindow != null && !recoveryWindow.IsDisposed) { recoveryWindow.Activate(); return; }
             recoveryWindow = new RecoveryForm(recovery, done =>
             {
@@ -340,7 +341,7 @@ namespace LocalDictation
                 var original = recovery.Audio; var audio = original == null ? null : (byte[])original.Clone(); if (audio == null || recovering) { done(); return; } int revision = recovery.Revision; recovering = true;
                 ThreadPool.QueueUserWorkItem(_ =>
                 {
-                    try { string recovered = PersonalRule.Apply(config, config.CleanupEnabled ? TextCleanup.Clean(SpeechEngine.Transcribe(config, MicRecorder.ToWav(audio))) : SpeechEngine.Transcribe(config, MicRecorder.ToWav(audio))); if (revision == recovery.Revision) { recovery.Text = recovered; recovery.Message = "Recovered. Copy only what you need."; } }
+                    try { string recovered = WritingFormat.Compose(config, SpeechEngine.Transcribe(config, MicRecorder.ToWav(audio))); if (revision == recovery.Revision) { recovery.Text = recovered; recovery.Message = "Recovered. Copy only what you need."; } }
                     catch (Exception ex) { if (revision == recovery.Revision) recovery.Message = ex.Message; }
                     finally { recovering = false; Array.Clear(audio, 0, audio.Length); done(); }
                 });
@@ -374,7 +375,7 @@ namespace LocalDictation
             recovery.Message = message + " Open Recover last dictation from the tray.";
             if (hub != null && !hub.IsDisposed) hub.SetReadiness(recovery.Message);
             overlay.Display(message, Color.FromArgb(180, 90, 20));
-            tray.ShowBalloonTip(5000, "Local Dictation", message, ToolTipIcon.Warning);
+            tray.ShowBalloonTip(5000, "Dotflow", message, ToolTipIcon.Warning);
             var timer = new System.Windows.Forms.Timer { Interval = 6000 };
             timer.Tick += (s, e) => { timer.Stop(); if (state.Current == AppState.Error) { state.Move(AppState.Idle); overlay.Hide(); } };
             timer.Start();
@@ -433,7 +434,7 @@ namespace LocalDictation
                     next.Save();
                     if (next.StartWithWindows || next.StartWithWindows != Startup.Enabled) Startup.Set(next.StartWithWindows);
                     config = next; overlay.ReducedMotion = config.ReducedMotion; dock.Configure(config.ReducedMotion); dock.SetVisibility(config.ShowToolbar); SetShortcutBindings();
-                    tray.Text = "Local Dictation - hold " + config.Hotkey;
+                    tray.Text = "Dotflow - hold " + config.Hotkey;
                 };
             }
         }

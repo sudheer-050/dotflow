@@ -5,7 +5,7 @@ from pathlib import Path
 
 from test_app import ROOT
 
-SETUP = ROOT / "dist" / "LocalDictation-Setup-0.6.1.exe"
+SETUP = ROOT / "dist" / "Dotflow-Setup-0.7.0.exe"
 
 
 def test_setup_reports_installed_size_in_rounded_up_kilobytes(tmp_path):

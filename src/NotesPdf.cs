@@ -49,7 +49,7 @@ namespace LocalDictation
                     {
                         graphics.Clear(Color.White); graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
                         for (int i = 0; i < pageLines.Length; i++) graphics.DrawString(pageLines[i], font, Brushes.Black, 100, 105 + i * 32);
-                        using (var footer = new Font("Segoe UI", 13)) graphics.DrawString("Local Dictation | Conversation snapshot | " + (pageIds.Count + 1), footer, Brushes.Gray, 100, 1655);
+                        using (var footer = new Font("Segoe UI", 13)) graphics.DrawString("Dotflow | Conversation snapshot | " + (pageIds.Count + 1), footer, Brushes.Gray, 100, 1655);
                         using (var bytes = new MemoryStream()) { bitmap.Save(bytes, ImageFormat.Jpeg); jpeg = bytes.ToArray(); }
                     }
                     int imageId = add(Stream(jpeg, "/Type /XObject /Subtype /Image /Width 1240 /Height 1754 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode"));

@@ -1,9 +1,9 @@
-﻿param([string]$Repository = 'sudheer-050/dotflow', [switch]$PrepareOnly)
+param([string]$Repository = 'sudheer-050/dotflow', [switch]$PrepareOnly)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$version = '0.6.1'
+$version = '0.7.0'
 $stage = Join-Path $projectRoot "release\dotflow-$version"
-$installer = Join-Path $projectRoot "dist\LocalDictation-Setup-$version.exe"
+$installer = Join-Path $projectRoot "dist\Dotflow-Setup-$version.exe"
 $releaseNotes = Join-Path $projectRoot "dist\RELEASE_NOTES-$version.md"
 if ($Repository -notmatch '^[A-Za-z0-9-]+/[A-Za-z0-9_.-]+$') { throw 'Use owner/repository for the GitHub repository.' }
 if (-not (Test-Path -LiteralPath $installer)) { throw 'Build and verify the installer first.' }
@@ -19,9 +19,9 @@ foreach ($folder in @('src','assets','installer','scripts','.github')) {
         Copy-Item -LiteralPath $_.FullName -Destination $destination -Force
     }
 }
-foreach ($file in @('.gitignore','README.md','USER_GUIDE.md','BACKLOG_STATUS.md','RELEASE_NOTES.md','THIRD_PARTY_NOTICES.md','requirements-dev.txt','setup.ps1','Update Local Dictation.vbs')) { Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination (Join-Path $stage $file) -Force }
+foreach ($file in @('.gitignore','README.md','USER_GUIDE.md','BACKLOG_STATUS.md','FIX_REPORT_0.7.0.md','UX_USER_REVIEW_0.6.1.md','RELEASE_NOTES.md','THIRD_PARTY_NOTICES.md','requirements-dev.txt','setup.ps1','Update Local Dictation.vbs')) { Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination (Join-Path $stage $file) -Force }
 $tests = Join-Path $stage 'tests'; New-Item -ItemType Directory -Path $tests -Force | Out-Null
-foreach ($file in @('test_app.py','test_setup.py','test_note_exports.py','test_release.py','test_completion.py')) { Copy-Item -LiteralPath (Join-Path $projectRoot "tests\$file") -Destination (Join-Path $tests $file) -Force }
+foreach ($file in @('test_app.py','test_setup.py','test_note_exports.py','test_release.py','test_completion.py','test_ux_fixes.py')) { Copy-Item -LiteralPath (Join-Path $projectRoot "tests\$file") -Destination (Join-Path $tests $file) -Force }
 & "$PSScriptRoot\prepare_release.ps1" -Repository $Repository
 if ($PrepareOnly) { Write-Output "Source snapshot prepared: $stage"; return }
 function Invoke-Native([scriptblock]$Command) {

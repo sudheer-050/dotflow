@@ -40,6 +40,10 @@ namespace LocalDictation
         readonly TrackBar playPosition = new TrackBar { Width = 120, Minimum = 0, Maximum = 1, TickStyle = TickStyle.None, Height = 28 };
         readonly ComboBox audioSource = Choice(), speed = Choice(), sort = Choice(), filter = Choice();
         readonly Label playTime = new Label { AutoSize = true, Padding = new Padding(0, 5, 0, 0) };
+        Button playButton, pausePlayback;
+        TableLayoutPanel sourceMeters, reviewWorkspace;
+        readonly Label captureDevices = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
+        readonly ToolTip reviewHints = new ToolTip();
         string libraryQuery = "";
         bool playerOpen;
         TextBox librarySearch;
@@ -51,7 +55,7 @@ namespace LocalDictation
         internal void SelectNote(string id) { Select(documents.FirstOrDefault(n => n.Id == id)); }
         internal void VerifyReviewLayout()
         {
-            if (selected == null || written.Text != selected.WrittenNotes || transcript.Text != NoteStore.Transcript(selected) || !transcript.ReadOnly) throw new InvalidOperationException("Review fields lost content or read-only state.");
+            if (selected == null || written.Text != selected.WrittenNotes || transcript.Text.Replace("\r", "") != NoteStore.Transcript(selected).Replace("\r", "") || !transcript.ReadOnly) throw new InvalidOperationException("Review fields lost content or read-only state.");
             if (!written.Visible || record.Bottom > record.Parent.ClientSize.Height || mode.Bottom > mode.Parent.ClientSize.Height || record.Height < 20 || mode.Height < 18) throw new InvalidOperationException("Review controls are clipped or hidden.");
         }
         public void NewWrittenNote() { writingFresh = true; Select(null); tabs.SelectedIndex = 0; written.Focus(); }
@@ -93,41 +97,45 @@ namespace LocalDictation
             filter.Items.AddRange(new object[] { "All notes & meetings", "Personal notes", "Meetings" }); filter.SelectedIndex = 0; library.Controls.Add(filter, 0, 2); filter.SelectedIndexChanged += (s, e) => Refilter();
             sort.Items.AddRange(new object[] { "Newest", "Oldest", "Title", "Longest" }); sort.SelectedItem = config.NotesSort; sort.AccessibleName = "Sort notes"; library.Controls.Add(sort, 0, 3);
             sort.SelectedIndexChanged += (s, e) => { config.NotesSort = sort.Text; try { config.Save(); } catch (Exception ex) { uiError = "Sort applied for this session. Could not save preference: " + ex.Message; } Refilter(); };
-            history.DrawMode = DrawMode.OwnerDrawFixed; history.ItemHeight = 58;
+            history.MouseMove += (s, e) => { int index = history.IndexFromPoint(e.Location); if (index >= 0) { var note = (NoteDocument)history.Items[index]; reviewHints.SetToolTip(history, note.Title + "\n" + note.CreatedUtc + " | " + note.Status); } };
+            history.DrawMode = DrawMode.OwnerDrawFixed; history.ItemHeight = Math.Max(58, Font.Height * 2 + 20); history.FontChanged += (s, e) => history.ItemHeight = Math.Max(58, history.Font.Height * 2 + 20);
             history.DrawItem += (s, e) =>
             {
                 if (e.Index < 0) return; var note = (NoteDocument)history.Items[e.Index];
                 using (var fill = new SolidBrush((e.State & DrawItemState.Selected) != 0 ? ThemeColors.Selected : ThemeColors.Paper)) e.Graphics.FillRectangle(fill, e.Bounds);
                 Color ink = SystemInformation.HighContrast && (e.State & DrawItemState.Selected) != 0 ? SystemColors.HighlightText : ThemeColors.Ink;
-                TextRenderer.DrawText(e.Graphics, note.Title, Font, new Rectangle(e.Bounds.Left + 7, e.Bounds.Top + 5, e.Bounds.Width - 14, 25), ink, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                TextRenderer.DrawText(e.Graphics, note.Title, Font, new Rectangle(e.Bounds.Left + 8, e.Bounds.Top + 4, e.Bounds.Width - 16, Font.Height + 5), ink, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
                 DateTime created; DateTime.TryParse(note.CreatedUtc, out created);
                 string duration = note.DurationSeconds > 0 ? " | " + TimeSpan.FromSeconds(note.DurationSeconds).ToString(@"hh\:mm\:ss") : "";
                 string detail = (note.Kind ?? "Note") + " | " + created.ToLocalTime().ToString("MMM d") + duration + " | " + note.Status;
-                using (var small = new Font(Font.FontFamily, 8)) TextRenderer.DrawText(e.Graphics, detail, small, new Rectangle(e.Bounds.Left + 7, e.Bounds.Top + 31, e.Bounds.Width - 14, 22), SystemInformation.HighContrast ? ink : ThemeColors.Muted, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                using (var small = new Font(Font.FontFamily, 8)) TextRenderer.DrawText(e.Graphics, detail, small, new Rectangle(e.Bounds.Left + 8, e.Bounds.Top + Font.Height + 10, e.Bounds.Width - 16, Font.Height + 4), SystemInformation.HighContrast ? ink : ThemeColors.Muted, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
                 e.DrawFocusRectangle();
             };
             pauseNote.Click += (s, e) => { if (session != null) session.TogglePause(); RefreshState(); };
-            var find = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 34, WrapContents = false };
-            var next = new Button { Text = "Find next", AutoSize = true }; find.Controls.Add(findText); find.Controls.Add(next);
+            var find = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true };
+            var next = new Button { Text = "Find next", AutoSize = true }; find.Controls.Add(new Label { Text = "Find text", AutoSize = true, Padding = new Padding(0, 5, 0, 0) }); find.Controls.Add(findText); find.Controls.Add(next);
             next.Click += (s, e) => FindNext(); findText.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
             transcriptTab.Controls.Add(find); find.BringToFront();
             transcript.DoubleClick += (s, e) =>
             {
                 int line = transcript.GetLineFromCharIndex(transcript.SelectionStart);
                 for (int i = Math.Min(line, transcript.Lines.Length - 1); i >= 0; i--)
-                { var match = Regex.Match(transcript.Lines[i], @"^\[(\d+:\d+:\d+)\]"); TimeSpan time; if (match.Success && TimeSpan.TryParse(match.Groups[1].Value, out time)) { var segment = selected.Segments.Where(x => x.Complete && String.IsNullOrEmpty(x.Error) && !String.IsNullOrWhiteSpace(x.RawText ?? x.Text)).OrderBy(x => x.StartFrame).ThenBy(x => x.Source).FirstOrDefault(x => (int)((x.TranscriptStartFrame ?? x.StartFrame) / 16000) == (int)time.TotalSeconds && transcript.Lines[i].Contains(NoteStore.Speaker(selected, x))); if (segment != null) audioSource.SelectedIndex = segment.Source == "Computer" ? 1 : 0; StartPlayback((int)time.TotalMilliseconds); break; } }
+                { var match = Regex.Match(transcript.Lines[i], @"^\[(\d+:\d+:\d+)\]"); TimeSpan time; if (match.Success && TimeSpan.TryParse(match.Groups[1].Value, out time)) { var segment = selected.Segments.Where(x => x.Complete && String.IsNullOrEmpty(x.Error) && !String.IsNullOrWhiteSpace(x.RawText ?? x.Text)).OrderBy(x => x.StartFrame).ThenBy(x => x.Source).FirstOrDefault(x => (int)((x.TranscriptStartFrame ?? x.StartFrame) / 16000) == (int)time.TotalSeconds && transcript.Lines[i].Contains(NoteStore.Speaker(selected, x))); if (segment != null) audioSource.SelectedItem = segment.Source; StartPlayback((int)time.TotalMilliseconds); break; } }
             };
             var excerptTab = new TabPage("Local review"); var generate = new Button { Text = "Create overview, decisions & follow-ups (source quotes)", Dock = DockStyle.Top, Height = 34 };
             generate.Click += (s, e) => { if (selected == null) return; lock (selected) { selected.Summary = NotesSummary.Generate(selected); store.Save(selected); excerptText.Text = selected.Summary; } };
             excerptTab.Controls.Add(excerptText); excerptTab.Controls.Add(generate); tabs.TabPages.Add(excerptTab);
-            var questions = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 38, WrapContents = false }; var question = new TextBox { Width = 230, AccessibleName = "Search meeting statements" }; var ask = new Button { Text = "Find an answer in source text", AutoSize = true };
+            var questions = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true }; var question = new TextBox { Width = 230, AccessibleName = "Search meeting statements" }; var ask = new Button { Text = "Find related statements", AutoSize = true };
             Action answer = () => { if (selected != null) lock (selected) excerptText.Text = NotesSummary.Answer(selected, question.Text); };
             ask.Click += (s, e) => answer(); question.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; answer(); } }; questions.Controls.AddRange(new Control[] { question, ask }); excerptTab.Controls.Add(questions); questions.BringToFront(); generate.BringToFront();
-            var playback = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 42, WrapContents = false, AutoScroll = true };
-            audioSource.Width = 105; audioSource.Height = 28; audioSource.Items.AddRange(new object[] { "Microphone", "Computer" }); audioSource.SelectedIndex = 0;
-            var play = new Button { Text = "Play", AutoSize = true }; var pause = new Button { Text = "Pause", AutoSize = true };
-            speed.Width = 65; speed.Items.AddRange(new object[] { "0.75x", "1x", "1.25x", "1.5x", "2x" }); speed.SelectedIndex = 1;
-            playback.Controls.AddRange(new Control[] { audioSource, play, pause, playPosition, speed, playTime });
+            var playback = new TableLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, ColumnCount = 5, RowCount = 2, Padding = new Padding(4) };
+            playback.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); for (int c = 1; c < 5; c++) playback.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            playback.RowStyles.Add(new RowStyle(SizeType.AutoSize)); playback.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            audioSource.Dock = DockStyle.Fill; audioSource.MinimumSize = new Size(95, 0); audioSource.AccessibleName = "Playback audio source";
+            var play = new Button { Text = "Play", AutoSize = true }; var pause = new Button { Text = "Pause", AutoSize = true }; playButton = play; pausePlayback = pause;
+            speed.Width = 70; speed.AccessibleName = "Playback speed"; speed.Items.AddRange(new object[] { "0.75x", "1x", "1.25x", "1.5x", "2x" }); speed.SelectedIndex = 1;
+            playback.Controls.Add(audioSource, 0, 0); playback.Controls.Add(play, 1, 0); playback.Controls.Add(pause, 2, 0); playback.Controls.Add(speed, 3, 0); playback.Controls.Add(playTime, 4, 0);
+            playPosition.Dock = DockStyle.Fill; playPosition.AccessibleName = "Recording position"; playback.Controls.Add(playPosition, 0, 1); playback.SetColumnSpan(playPosition, 5);
             transcriptTab.Controls.Add(playback); playback.BringToFront();
             play.Click += (s, e) => StartPlayback(); pause.Click += (s, e) => { try { player.Pause(); } catch (Exception ex) { uiError = ex.Message; } };
             audioSource.SelectedIndexChanged += (s, e) => { player.Dispose(); playerOpen = false; };
@@ -139,7 +147,8 @@ namespace LocalDictation
             var meters = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 22, ColumnCount = 4 };
             meters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 34)); meters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); meters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70)); meters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             meters.Controls.Add(new Label { Text = "Mic", Dock = DockStyle.Fill }, 0, 0); meters.Controls.Add(micMeter, 1, 0); meters.Controls.Add(new Label { Text = "Output", Dock = DockStyle.Fill }, 2, 0); meters.Controls.Add(outputMeter, 3, 0);
-            var captureState = new Panel { Dock = DockStyle.Fill }; workspace.Controls.Remove(status); status.Dock = DockStyle.Top; status.Height = 26; captureState.Controls.Add(status); captureState.Controls.Add(meters); workspace.RowStyles[3].Height = 52; workspace.Controls.Add(captureState, 0, 3); meters.BringToFront();
+            sourceMeters = meters; reviewWorkspace = workspace;
+            var captureState = new Panel { Dock = DockStyle.Fill }; workspace.Controls.Remove(status); status.Dock = DockStyle.Top; status.Height = 26; captureState.Controls.Add(captureDevices); captureDevices.Padding = new Padding(0, 26, 0, 22); captureState.Controls.Add(status); captureState.Controls.Add(meters); workspace.RowStyles[3].Height = 52; workspace.Controls.Add(captureState, 0, 3); meters.BringToFront();
         }
         protected override bool ProcessCmdKey(ref Message message, Keys keys)
         {
@@ -158,11 +167,11 @@ namespace LocalDictation
         }
         void StartPlayback(int position = -1)
         {
-            if (selected == null) return;
+            if (selected == null || audioSource.SelectedItem == null) return;
             try
             {
                 if (Busy && ReferenceEquals(selected, session.Document)) { uiError = "Playback is available after this recording is saved."; return; }
-                if (!playerOpen) { player.Open(store.AudioPath(selected, audioSource.SelectedIndex == 0 ? "Microphone" : "Computer")); playerOpen = true; }
+                if (!playerOpen) { player.Open(store.AudioPath(selected, Convert.ToString(audioSource.SelectedItem))); playerOpen = true; player.Speed(new[] { 0.75, 1.0, 1.25, 1.5, 2.0 }[speed.SelectedIndex]); }
                 player.Play(position); uiError = "";
             }
             catch (Exception ex) { playerOpen = false; uiError = ex.Message; }
@@ -170,13 +179,34 @@ namespace LocalDictation
         void UpdateReviewState()
         {
             emptyState.Visible = selected == null && !writingFresh;
-            if (selected != null) { playPosition.Maximum = Math.Max(1, (int)Math.Min(Int32.MaxValue - 1, selected.DurationSeconds * 1000)); if (playerOpen) playPosition.Value = Math.Min(playPosition.Maximum, player.Position); playTime.Text = TimeSpan.FromMilliseconds(playerOpen ? player.Position : 0).ToString(@"mm\:ss"); }
+            sourceMeters.Visible = captureDevices.Visible = Recording; reviewWorkspace.RowStyles[3].Height = Recording ? 80 : 30;
+            if (Recording) { string micName = microphone.SelectedItem == null ? "Default microphone" : microphone.SelectedItem.ToString(), outputName = output.SelectedItem == null ? "Default output" : output.SelectedItem.ToString(); captureDevices.Text = (session.Document.Mode == "Computer" ? "" : "Mic: " + micName + (session.MicrophoneSound > 70 ? " (activity)" : " (quiet)")) + (session.Document.Mode == "Both" ? " | " : "") + (session.Document.Mode == "Microphone" ? "" : "Output: " + outputName + (session.ComputerSound > 70 ? " (activity)" : " (quiet)")); reviewHints.SetToolTip(captureDevices, captureDevices.Text); }
+
+            if (selected != null && !Busy && audioSource.Items.Count == 0 && new[] { "Microphone", "Computer" }.Any(source => File.Exists(store.AudioPath(selected, source)))) LoadAudioSources(selected);
+            if (selected != null) { playPosition.Maximum = Math.Max(1, (int)Math.Min(Int32.MaxValue - 1, selected.DurationSeconds * 1000)); if (playerOpen) playPosition.Value = Math.Min(playPosition.Maximum, player.Position); playTime.Text = audioSource.Items.Count == 0 ? "No saved audio" : TimeSpan.FromMilliseconds(playerOpen ? player.Position : 0).ToString(@"mm\:ss"); }
             if (Busy && session.Document != null && !ReferenceEquals(selected, session.Document)) status.Text = "Active: " + session.Document.Title + " - " + session.Document.Status;
             if (selected != null)
             {
                 int failures; lock (selected) failures = selected.Segments.Count(s => !s.Complete || !String.IsNullOrEmpty(s.Error));
                 if (!Recording && failures > 0) status.Text += " | " + failures + " missing sections at " + String.Join(", ", selected.Segments.Where(s => !s.Complete || !String.IsNullOrEmpty(s.Error)).Take(3).Select(s => TimeSpan.FromSeconds(s.StartFrame / 16000.0).ToString(@"mm\:ss"))) + " - audio kept; Retry.";
             }
+        }
+        void LoadAudioSources(NoteDocument document)
+        {
+            audioSource.Items.Clear(); if (document != null) foreach (string source in new[] { "Microphone", "Computer" }) if (File.Exists(store.AudioPath(document, source))) audioSource.Items.Add(source);
+            if (audioSource.Items.Count > 0) audioSource.SelectedIndex = 0;
+            bool available = audioSource.Items.Count > 0; audioSource.Enabled = playPosition.Enabled = speed.Enabled = available; if (playButton != null) playButton.Enabled = available; if (pausePlayback != null) pausePlayback.Enabled = available;
+            playTime.Text = available ? "00:00" : "No saved audio";
+        }
+        void DisplayConversation(string value)
+        {
+            transcript.Text = DialogUi.Lines(value); transcript.SelectAll(); transcript.SelectionColor = ThemeColors.Ink; transcript.SelectionFont = Font;
+            foreach (Match match in Regex.Matches(transcript.Text, @"(?m)^\[\d+:\d+:\d+\][^\r\n]*")) { transcript.Select(match.Index, match.Length); transcript.SelectionColor = ThemeColors.Muted; using (var bold = new Font(Font, FontStyle.Bold)) transcript.SelectionFont = bold; }
+            transcript.Select(0, 0);
+        }
+        public void ShowRecordingHelp()
+        {
+            MessageBox.Show(FindForm(), "Choose the same output device used by Zoom, Meet or your call app. Both captures your microphone and that device. Headphones avoid duplicate sound. If a device changes, stop, choose the new device and resume the saved record.", "Meeting audio");
         }
         void ResumeSelected()
         {
@@ -197,24 +227,22 @@ namespace LocalDictation
         }
         void EditSpeakerLabels()
         {
-            if (selected == null || Busy && ReferenceEquals(selected, session.Document)) return;
-            var note = selected;
-            using (var dialog = new Form { Text = "Speaker labels - original words stay read-only", Size = new Size(820, 540), StartPosition = FormStartPosition.CenterParent, Font = Font, Icon = AppLogo.Icon })
+            if (selected == null || Busy && ReferenceEquals(selected, session.Document)) return; var note = selected;
+            using (var dialog = DialogUi.Create("Correct speaker labels", new Size(850, 600)))
             {
-                var hint = new Label { Text = "Correct names for each recognized section. Leave blank to keep its audio-source label. This does not identify voices automatically.", Dock = DockStyle.Top, Height = 54, Padding = new Padding(10) };
-                var grid = new DataGridView { Dock = DockStyle.Fill, AllowUserToAddRows = false, AllowUserToDeleteRows = false, RowHeadersVisible = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, AccessibleName = "Speaker labels" };
-                grid.Columns.Add("Time", "Time"); grid.Columns.Add("Source", "Audio source"); grid.Columns.Add("Words", "Original words (read-only)"); grid.Columns.Add("Speaker", "Speaker label");
-                for (int c = 0; c < 3; c++) grid.Columns[c].ReadOnly = true;
-                grid.Columns[0].FillWeight = 15; grid.Columns[1].FillWeight = 20; grid.Columns[2].FillWeight = 50; grid.Columns[3].FillWeight = 25;
-                lock (note) foreach (var segment in note.Segments) grid.Rows.Add(TimeSpan.FromSeconds((segment.TranscriptStartFrame ?? segment.StartFrame) / 16000.0).ToString(@"hh\:mm\:ss"), segment.Source, segment.RawText ?? segment.Text, segment.SpeakerLabel);
-                var save = new Button { Text = "Save speaker labels", Dock = DockStyle.Bottom, Height = 42 };
-                save.Click += (s, e) =>
-                {
-                    grid.EndEdit(); string[] previous = note.Segments.Select(x => x.SpeakerLabel).ToArray();
-                    try { lock (note) { SetSpeakerLabels(note, grid.Rows.Cast<DataGridViewRow>().Select(row => Convert.ToString(row.Cells[3].Value)).ToArray()); store.Save(note); } transcript.Text = NoteStore.Transcript(note); dialog.Close(); }
-                    catch (Exception ex) { lock (note) SetSpeakerLabels(note, previous); MessageBox.Show(dialog, ex.Message, "Could not save speaker labels"); }
-                };
-                dialog.Controls.Add(grid); dialog.Controls.Add(hint); dialog.Controls.Add(save); ThemeColors.Apply(dialog, config.Theme); dialog.ShowDialog(FindForm());
+                string[] labels; lock (note) labels = note.Segments.Select(segment => segment.SpeakerLabel ?? "").ToArray();
+                var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4 }; layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                layout.Controls.Add(DialogUi.Text("Select one or more original statements, choose a speaker, then Assign. Only labels change; words and recording sources are preserved."), 0, 0);
+                var list = new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, MultiSelect = true, HideSelection = false, AccessibleName = "Original statements to label" };
+                list.Columns.Add("Time / source", 150); list.Columns.Add("Original words", 430); list.Columns.Add("Speaker", 150);
+                Action refresh = () => { list.Items.Clear(); for (int i = 0; i < note.Segments.Count; i++) { var section = note.Segments[i]; if (!section.Complete || String.IsNullOrWhiteSpace(section.RawText ?? section.Text)) continue; var item = new ListViewItem(TimeSpan.FromSeconds((section.TranscriptStartFrame ?? section.StartFrame) / 16000.0).ToString(@"hh\:mm\:ss") + " / " + section.Source) { Tag = i }; item.SubItems.Add((section.RawText ?? section.Text).Replace("\r", "").Replace("\n", " ")); item.SubItems.Add(labels[i]); list.Items.Add(item); } }; refresh(); layout.Controls.Add(list, 0, 1);
+                var assign = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true }; var speaker = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDown, MaxLength = 80, AccessibleName = "Speaker name" }; speaker.Items.AddRange(note.Participants.Concat(new[] { note.UserName }).Concat(labels).Where(name => !String.IsNullOrWhiteSpace(name)).Distinct().Cast<object>().ToArray());
+                assign.Controls.Add(new Label { Text = "Speaker", AutoSize = true, Padding = new Padding(0, 8, 0, 0) }); assign.Controls.Add(speaker);
+                assign.Controls.Add(DialogUi.Button("Assign to selection", (s, e) => { if (speaker.Text.Length > 80 || speaker.Text.Any(Char.IsControl)) { MessageBox.Show(dialog, "Use a speaker name up to 80 characters without line breaks."); return; } foreach (ListViewItem item in list.SelectedItems) { labels[(int)item.Tag] = speaker.Text.Trim(); item.SubItems[2].Text = speaker.Text.Trim(); } })); layout.Controls.Add(assign, 0, 2);
+                var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
+                actions.Controls.Add(DialogUi.Button("Save labels", (s, e) => { string[] previous = note.Segments.Select(section => section.SpeakerLabel).ToArray(); try { lock (note) { SetSpeakerLabels(note, labels); store.Save(note); } DisplayConversation(NoteStore.Transcript(note)); dialog.Close(); } catch (Exception ex) { lock (note) SetSpeakerLabels(note, previous); MessageBox.Show(dialog, ex.Message, "Could not save labels"); } }, true)); actions.Controls.Add(DialogUi.Button("Cancel", (s, e) => dialog.Close())); layout.Controls.Add(actions, 0, 3);
+                dialog.Controls.Add(layout); ThemeColors.Apply(dialog, config.Theme); dialog.ShowDialog(FindForm());
             }
         }
     }

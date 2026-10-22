@@ -13,19 +13,19 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-[assembly: AssemblyVersion("0.6.1.0")]
+[assembly: AssemblyVersion("0.7.0.0")]
 namespace LocalDictationSetup
 {
     sealed class SetupForm : Form
     {
-        const string Version = "0.6.1", RegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\LocalDictation";
+        const string Version = "0.7.0", RegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\LocalDictation";
         const string ModelUrl = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip";
         const string RuntimeUrl = "https://github.com/alphacep/vosk-api/releases/download/v0.3.45/vosk-win64-0.3.45.zip";
         readonly string destination = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "LocalDictation");
         readonly Label status = new Label { Left = 34, Top = 290, Width = 550, Height = 65 };
         readonly ProgressBar progress = new ProgressBar { Left = 34, Top = 265, Width = 550, Height = 10 };
         readonly CheckBox desktop = new CheckBox { Left = 34, Top = 190, Width = 500, Text = "Create a desktop shortcut", Checked = true };
-        readonly Label heading = new Label { Left = 30, Top = 28, Width = 550, Height = 58, Text = "Local Dictation", Font = new Font("Segoe UI", 28) };
+        readonly Label heading = new Label { Left = 30, Top = 28, Width = 550, Height = 58, Text = "Dotflow", Font = new Font("Segoe UI", 28) };
         readonly Label description = new Label { Left = 34, Top = 95, Width = 550, Height = 90 };
         readonly Button close = new Button { Left = 270, Top = 370, Width = 120, Height = 42, Text = "Close", Visible = false };
         readonly Button action = new Button { Left = 402, Top = 370, Width = 182, Height = 42, Text = "Install", FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(39, 42, 47), ForeColor = Color.White };
@@ -40,7 +40,7 @@ namespace LocalDictationSetup
         {
             Icon = Icon.ExtractAssociatedIcon(Assembly.GetExecutingAssembly().Location);
             this.uninstall = uninstall; AutoScaleMode = AutoScaleMode.None; Font = new Font("Segoe UI", 10);
-            Text = uninstall ? "Uninstall Local Dictation" : "Local Dictation Setup"; BackColor = Color.FromArgb(250, 249, 246);
+            Text = uninstall ? "Uninstall Dotflow" : "Dotflow Setup"; BackColor = Color.FromArgb(250, 249, 246);
             ClientSize = new Size(620, 440); FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen;
             description.Text = uninstall ? "Remove the application. Your notes, audio and preferences will be kept." : "Internet required during installation.\nSetup downloads the English speech model (about 40 MB) and supporting files automatically. Keep connected until setup finishes.";
             Controls.AddRange(new Control[] { heading, description, desktop, removeSpeech, removeNotes, progress, status, action, close });
@@ -53,7 +53,7 @@ namespace LocalDictationSetup
                 if (!finished) { await Run(); return; }
                 if (uninstall) { Close(); return; }
                 try { Process.Start(new ProcessStartInfo { FileName = Path.Combine(destination, "LocalDictation.exe"), WorkingDirectory = destination, UseShellExecute = true }); Close(); }
-                catch (Exception ex) { status.Text = "Could not open the app: " + ex.Message + "\nTry the Local Dictation shortcut in the Start menu."; }
+                catch (Exception ex) { status.Text = "Could not open the app: " + ex.Message + "\nTry the Dotflow shortcut in the Start menu."; }
             };
             FormClosing += (s, e) => { if (busy) e.Cancel = true; };
             using (var graphics = CreateGraphics()) { float scale = graphics.DpiX / 96f; if (scale != 1) Scale(new SizeF(scale, scale)); }
@@ -70,7 +70,7 @@ namespace LocalDictationSetup
                 try { if (!String.Equals(process.MainModule.FileName, Path.Combine(destination, "LocalDictation.exe"), StringComparison.OrdinalIgnoreCase)) continue; }
                 catch { continue; }
                 try { using (var signal = EventWaitHandle.OpenExisting("LocalDictation.Exit")) signal.Set(); }
-                catch (WaitHandleCannotBeOpenedException) { status.Text = "Exit Local Dictation from its tray menu, then click the button again. Notes will be kept."; return false; }
+                catch (WaitHandleCannotBeOpenedException) { status.Text = "Exit Dotflow from its tray menu, then click the button again. Notes will be kept."; return false; }
                 if (!process.WaitForExit(8000)) { status.Text = "The app is still saving. Close it from its tray menu and try again."; return false; }
             }
             return true;
@@ -110,11 +110,16 @@ namespace LocalDictationSetup
                 cancellation.Token.ThrowIfCancellationRequested(); status.Text = "4/4 - Finishing installation...";
                 string uninstaller = Path.Combine(destination, "Uninstall.exe");
                 if (!String.Equals(Assembly.GetExecutingAssembly().Location, uninstaller, StringComparison.OrdinalIgnoreCase)) File.Copy(Assembly.GetExecutingAssembly().Location, uninstaller, true);
-                MakeShortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Local Dictation.lnk"), exe);
-                if (desktop.Checked) MakeShortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Local Dictation.lnk"), exe);
+                foreach (var parent in new[] { Environment.SpecialFolder.Programs, Environment.SpecialFolder.DesktopDirectory })
+                {
+                    string legacy = Path.Combine(Environment.GetFolderPath(parent), "Local Dictation.lnk");
+                    if (File.Exists(legacy)) { object shell = null, link = null; try { shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")); link = shell.GetType().InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { legacy }); string target = Convert.ToString(link.GetType().InvokeMember("TargetPath", BindingFlags.GetProperty, null, link, null)); if (String.Equals(target, exe, StringComparison.OrdinalIgnoreCase)) File.Delete(legacy); } finally { if (link != null) Marshal.FinalReleaseComObject(link); if (shell != null) Marshal.FinalReleaseComObject(shell); } }
+                }
+                MakeShortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Dotflow.lnk"), exe);
+                if (desktop.Checked) MakeShortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Dotflow.lnk"), exe);
                 using (var key = Registry.CurrentUser.CreateSubKey(RegistryPath))
                 {
-                    key.SetValue("DisplayName", "Local Dictation"); key.SetValue("DisplayVersion", Version); key.SetValue("InstallLocation", destination);
+                    key.SetValue("DisplayName", "Dotflow"); key.SetValue("DisplayVersion", Version); key.SetValue("InstallLocation", destination);
                     key.SetValue("DisplayIcon", exe); key.SetValue("UninstallString", "\"" + uninstaller + "\" --uninstall"); key.SetValue("NoModify", 1); key.SetValue("NoRepair", 1);
                     key.SetValue("EstimatedSize", InstalledKilobytes(destination), RegistryValueKind.DWord);
                 }
@@ -126,9 +131,9 @@ namespace LocalDictationSetup
         void ShowSuccess()
         {
             finished = true;
-            Text = "Local Dictation - Installed";
+            Text = "Dotflow - Installed";
             heading.Text = "You're all set";
-            description.Text = "Local Dictation installed successfully.\nYour English speech model is ready. Open the app to start writing and taking notes.";
+            description.Text = "Dotflow installed successfully.\nYour English speech model is ready. Open the app to start writing and taking notes.";
             desktop.Visible = progress.Visible = false;
             status.Text = "No further downloads are needed for speech recognition.\nYou can use the app offline.";
             action.Text = "Open app";
@@ -197,7 +202,7 @@ namespace LocalDictationSetup
         {
             // Delete only known program files. Never recurse into user data or remove the running uninstaller.
             foreach (string file in new[] { "LocalDictation.exe", "LocalDictation.previous.exe", "THIRD_PARTY_NOTICES.md" }) { string path = Path.Combine(destination, file); if (File.Exists(path)) File.Delete(path); }
-            foreach (var parent in new[] { Environment.SpecialFolder.Programs, Environment.SpecialFolder.DesktopDirectory }) { string path = Path.Combine(Environment.GetFolderPath(parent), "Local Dictation.lnk"); if (File.Exists(path)) File.Delete(path); }
+            foreach (var parent in new[] { Environment.SpecialFolder.Programs, Environment.SpecialFolder.DesktopDirectory }) { string path = Path.Combine(Environment.GetFolderPath(parent), "Dotflow.lnk"); if (File.Exists(path)) File.Delete(path); }
             string data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LocalDictation");
             if (removeSpeech.Checked) { RemoveKnownDirectory(Path.Combine(destination, "native"), destination); RemoveKnownDirectory(Path.Combine(destination, "model-small-en-us"), destination); RemoveKnownDirectory(Path.Combine(data, "SetupCache"), data); }
             if (removeNotes.Checked) { RemoveKnownDirectory(Path.Combine(data, "Notes"), data); string preferences = Path.Combine(data, "config.json"); if (File.Exists(preferences)) File.Delete(preferences); }

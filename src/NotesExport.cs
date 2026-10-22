@@ -24,14 +24,14 @@ namespace LocalDictation
             return copy;
         }
         static string Xml(string text) { return SecurityElement.Escape(text ?? ""); }
-        static string DocumentText(NoteDocument note)
+        internal static string PreviewText(NoteDocument note)
         {
             DateTime created;
             string date = DateTime.TryParse(note.CreatedUtc, out created) ? created.ToLocalTime().ToString("MMM d, yyyy - h:mm tt") : note.CreatedUtc;
             return note.Title + "\n\n" + date + " | " + note.Mode + "\n\n" +
                 (String.IsNullOrWhiteSpace(note.UserName) ? "" : "Name: " + note.UserName + "\n\n") +
                 (note.Participants.Count == 0 ? "" : "Participants: " + String.Join(", ", note.Participants) + "\n\n") +
-                "Personal notes\n\n" + note.WrittenNotes + "\n\nConversation\n\n" + NoteStore.Transcript(note) + (String.IsNullOrWhiteSpace(note.Summary) ? "" : "\n\nLocal review (source excerpts)\n\n" + note.Summary);
+                (String.IsNullOrWhiteSpace(note.WrittenNotes) ? "" : "Personal notes\n\n" + note.WrittenNotes + "\n\n") + (String.IsNullOrWhiteSpace(NoteStore.Transcript(note)) ? "" : "Conversation\n\n" + NoteStore.Transcript(note)) + (String.IsNullOrWhiteSpace(note.Summary) ? "" : "\n\nLocal review (source excerpts)\n\n" + note.Summary);
         }
         static void Part(ZipArchive zip, string name, string xml)
         {
@@ -101,11 +101,11 @@ namespace LocalDictation
                 Part(zip, "word/_rels/document.xml.rels", "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/></Relationships>");
                 Part(zip, "word/settings.xml", "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\"/></w:settings>");
                 var xml = new StringBuilder("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>");
-                foreach (string line in DocumentText(note).Replace("\r", "").Split('\n')) xml.Append("<w:p><w:r><w:rPr><w:rFonts w:ascii=\"Calibri\" w:hAnsi=\"Calibri\"/><w:sz w:val=\"22\"/></w:rPr><w:t xml:space=\"preserve\">").Append(Xml(line)).Append("</w:t></w:r></w:p>");
+                foreach (string line in PreviewText(note).Replace("\r", "").Split('\n')) xml.Append("<w:p><w:r><w:rPr><w:rFonts w:ascii=\"Calibri\" w:hAnsi=\"Calibri\"/><w:sz w:val=\"22\"/></w:rPr><w:t xml:space=\"preserve\">").Append(Xml(line)).Append("</w:t></w:r></w:p>");
                 xml.Append("<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1134\" w:right=\"1134\" w:bottom=\"1134\" w:left=\"1134\"/></w:sectPr></w:body></w:document>");
                 Part(zip, "word/document.xml", xml.ToString());
             }
         }
-        static void Pdf(NoteDocument note, string path) { NotesPdf.Save(DocumentText(note), path); }
+        static void Pdf(NoteDocument note, string path) { NotesPdf.Save(PreviewText(note), path); }
     }
 }
