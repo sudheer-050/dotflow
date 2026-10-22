@@ -1,13 +1,13 @@
-param([string]$Repository = 'sudheer-050/dotflow')
+param([string]$Repository = 'sudheer-050/notewll')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $version = '0.7.0'
-$installer = Join-Path $root "dist\Dotflow-Setup-$version.exe"
+$installer = Join-Path $root "dist\Notewll-Setup-$version.exe"
 if (-not (Test-Path -LiteralPath $installer)) { throw 'Build the installer first.' }
 $signature = Get-AuthenticodeSignature -LiteralPath $installer
 $manifest = [ordered]@{
  Version = $version
- InstallerUrl = "https://github.com/$Repository/releases/download/v$version/Dotflow-Setup-$version.exe"
+ InstallerUrl = "https://github.com/$Repository/releases/download/v$version/Notewll-Setup-$version.exe"
  Sha256 = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'dist\update.json') -Encoding UTF8

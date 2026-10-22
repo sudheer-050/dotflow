@@ -1,4 +1,4 @@
-# User-experience review: Local Dictation / Dotflow 0.6.1
+# User-experience review: Local Dictation / Notewll 0.6.1
 
 Reviewed 2026-10-21. Overall provisional product/UX rating: **6/10**.
 
@@ -68,7 +68,7 @@ Evidence: **Rendered** = inspected an actual app-owned screen/dialog; **Source**
 | UR16 | P1 | Small-model quality is unproven for quiet speech, names, overlap and long meetings. | Test a consented reference corpus against both apps; compare correction effort, not only transcript word errors. Do not infer accuracy from silence tests. | Pending. |
 | UR17 | P2 | Home spends most of its space on large cards and repeated privacy/setup copy. | Reduce header/card heights and show useful recent work sooner. Preserve the three clear capture actions. | Rendered Home. |
 | UR18 | P2 | Home displays recovery and issue actions prominently even in a clean session. | Show these only when relevant or as a compact status link; prioritize recent documents and readiness. | Rendered and Source. |
-| UR19 | P2 | App identity is generic: the application is Local Dictation while the chosen repository identity is Dotflow. | Decide on one public product identity, then apply it consistently across installer, app, executable metadata, shortcuts and help. A repository nickname alone is not a finished brand. | Rendered; conversation context. |
+| UR19 | P2 | App identity is generic: the application is Local Dictation while the chosen repository identity is Notewll. | Decide on one public product identity, then apply it consistently across installer, app, executable metadata, shortcuts and help. A repository nickname alone is not a finished brand. | Rendered; conversation context. |
 | UR20 | P2 | Preferences and Notes combine rounded cards with strong native tab borders, flat fields and broad scrollbars. | Refine borders, selection, focus and spacing into one system while preserving native keyboard/accessibility behavior. A web-framework rewrite is not required. | Rendered Light/Dark screens. |
 | UR21 | P2 | Dark theme still has conspicuous pale dropdown/tab chrome in captured screens. | Check actual Windows theme combinations, dropdown lists and secondary dialogs. Use consistent native or custom treatment and verify high-contrast readability. | Rendered; live accessibility Pending. |
 | UR22 | P2 | Dictionary/snippets feel like editing a database table. | Provide separate word/snippet views, Add entry, examples, row delete and search. Keep JSON import/export under an overflow menu. | Rendered dictionary. |

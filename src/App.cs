@@ -125,7 +125,7 @@ namespace LocalDictation
         int liveBusy;
         LiveRecognition liveRecognition;
         string liveInserted = "";
-        bool liveInterrupted, noteIndicator;
+        bool liveInterrupted, noteIndicator, sessionLiveWriting;
         IntPtr hook, target;
         IntPtr previousApp;
         Config config;
@@ -165,10 +165,10 @@ namespace LocalDictation
         {
             overlay.InputLevel = () => recorder != null ? recorder.SoundLevel : hub != null ? hub.NoteSoundLevel : 0;
             try { config = Config.Load(); }
-            catch (InvalidDataException ex) { config = new Config(); MessageBox.Show(ex.Message + " Defaults will be used.", "Dotflow"); }
+            catch (InvalidDataException ex) { config = new Config(); MessageBox.Show(ex.Message + " Defaults will be used.", "Notewll"); }
             overlay.ReducedMotion = config.ReducedMotion;
             var menu = new ContextMenuStrip();
-            menu.Items.Add("Open Dotflow", null, (s, e) => ShowHub("Home"));
+            menu.Items.Add("Open Notewll", null, (s, e) => ShowHub("Home"));
             menu.Items.Add("Show floating toolbar", null, (s, e) => { config.ShowToolbar = true; dock.SetVisibility(true); try { config.Save(); } catch (Exception ex) { ReportIssue("Toolbar shown, but its preference could not be saved: " + ex.Message); } });
             menu.Items.Add("Recover last dictation", null, (s, e) => ShowRecovery());
             menu.Items.Add("Issues & recovery", null, (s, e) => { ShowHub("Home"); if (hub != null) hub.ShowIssues(); });
@@ -177,7 +177,7 @@ namespace LocalDictation
             menu.Items.Add("Preferences", null, (s, e) => ShowHub("Preferences"));
             menu.Items.Add("Stop and save note", null, (s, e) => { if (hub != null && hub.IsNoteRecording) hub.ToggleNote(hub.NoteMode); });
             menu.Items.Add("Exit", null, (s, e) => ExitThread());
-            tray = new NotifyIcon { Icon = AppLogo.Icon, Text = "Dotflow 0.7.0 - hold " + config.Hotkey, Visible = true, ContextMenuStrip = menu };
+            tray = new NotifyIcon { Icon = AppLogo.Icon, Text = "Notewll 0.7.0 - hold " + config.Hotkey, Visible = true, ContextMenuStrip = menu };
             dock.RestorePosition(config.ToolbarX, config.ToolbarY);
             dock.Configure(config.ReducedMotion); dock.CancelWrite = Cancel;
             dock.ToggleWrite = () => { if (state.Current == AppState.Recording) StopRecording(); else StartRecording(); UpdateDock(); };
@@ -190,7 +190,7 @@ namespace LocalDictation
                 bool recordingNote = hub != null && hub.IsNoteRecording;
                 if (config.ShowVoiceIndicator && recordingNote && !noteIndicator && state.Current == AppState.Idle) { overlay.Display("Recording from " + hub.NoteMode + " notes", Color.FromArgb(45, 120, 75)); noteIndicator = true; }
                 if (!recordingNote && noteIndicator) { if (state.Current == AppState.Idle) overlay.Hide(); noteIndicator = false; }
-                tray.Text = hub != null && hub.IsNoteRecording ? "Dotflow - recording " + hub.NoteMode + " notes" : "Dotflow - hold " + (config.Hotkey.Length > 30 ? config.Hotkey.Substring(0, 30) : config.Hotkey); }; noteStatus.Start();
+                tray.Text = hub != null && hub.IsNoteRecording ? "Notewll - recording " + hub.NoteMode + " notes" : "Notewll - hold " + (config.Hotkey.Length > 30 ? config.Hotkey.Substring(0, 30) : config.Hotkey); }; noteStatus.Start();
             tray.DoubleClick += (s, e) => ShowHub("Home");
             SetShortcutBindings();
             liveTimer.Tick += (s, e) => LiveTick();
@@ -232,7 +232,7 @@ namespace LocalDictation
         void Prewarm()
         {
             string problem = SpeechEngine.EnsureRunning(config, 150); engineReadiness = problem ?? "Ready - English speech stays on this device."; PostUi(() => { if (hub != null && !hub.IsDisposed) hub.SetReadiness(engineReadiness); });
-            if (problem != null && tray.Visible) PostUi(() => { ReportIssue(problem); tray.ShowBalloonTip(6000, "Dotflow", problem, ToolTipIcon.Warning); });
+            if (problem != null && tray.Visible) PostUi(() => { ReportIssue(problem); tray.ShowBalloonTip(6000, "Notewll", problem, ToolTipIcon.Warning); });
         }
 
         void StartRecording()
@@ -240,6 +240,7 @@ namespace LocalDictation
             if (state.Current != AppState.Idle || recovering) return;
             if (hub != null && hub.IsTesting) return;
             target = Native.GetForegroundWindow();
+            sessionLiveWriting = config.LiveWriting;
             try
             {
                 var rec = new MicRecorder(config.Microphone);
@@ -247,13 +248,13 @@ namespace LocalDictation
                 recorder = rec;
             }
             catch (Exception ex) { Fail("Microphone problem: " + ex.Message); return; }
-            state.Move(AppState.Recording); generation++; if (liveRecognition != null) liveRecognition.Dispose(); liveRecognition = new LiveRecognition(); liveInserted = ""; liveInterrupted = mouseHook == IntPtr.Zero; if (config.LiveWriting) liveTimer.Start();
+            state.Move(AppState.Recording); generation++; if (liveRecognition != null) liveRecognition.Dispose(); liveRecognition = new LiveRecognition(); liveInserted = ""; liveInterrupted = mouseHook == IntPtr.Zero; if (sessionLiveWriting) liveTimer.Start();
             if (config.ShowVoiceIndicator) overlay.Display("● Recording from " + recorder.DeviceName + (recorder.FellBack ? " (saved mic not found — using default)" : "") + " — release " + config.Hotkey, Color.FromArgb(190, 45, 45));
         }
 
         void LiveTick()
         {
-            if (state.Current != AppState.Recording || recorder == null || !config.LiveWriting || liveInterrupted || Interlocked.CompareExchange(ref liveBusy, 1, 0) != 0) return;
+            if (state.Current != AppState.Recording || recorder == null || !sessionLiveWriting || liveInterrupted || Interlocked.CompareExchange(ref liveBusy, 1, 0) != 0) return;
             byte[] pcm = recorder.Snapshot(); int peak = recorder.Peak; int gen = generation; var cfg = config; var recognition = liveRecognition;
             if (pcm.Length < 16000 || peak < 150) { Interlocked.Exchange(ref liveBusy, 0); return; }
             liveIdle.Reset();
@@ -271,7 +272,7 @@ namespace LocalDictation
         bool ApplyLiveText(string text)
         {
             if (hub != null && !hub.IsDisposed && target == hub.Handle) { hub.UpdateLiveTranscript(text); return true; }
-            if (!config.AutoPaste || !config.LiveWriting || liveInterrupted) return false;
+            if (!config.AutoPaste || liveInterrupted) return false;
             if (Native.GetForegroundWindow() != target) { liveInterrupted = true; return false; }
             if (Native.ModifiersDown()) return false;
             var edit = LiveEdit.Between(liveInserted, text);
@@ -317,23 +318,19 @@ namespace LocalDictation
                 hub.UpdateTranscript(raw, text);
                 if (target == hub.Handle) { state.Move(AppState.Idle); overlay.Hide(); return; }
             }
-            if (config.AutoPaste && config.LiveWriting && liveInserted.Length > 0)
+            if (config.AutoPaste)
             {
                 if (ApplyLiveText(text)) { state.Move(AppState.Idle); overlay.Hide(); recovery.Discard(); return; }
-                Fail("Your cursor changed. Review the recovered text before pasting to avoid duplicates."); return;
+                Fail("Text is ready but typing was interrupted. Open Recover last dictation to review and copy it."); return;
             }
-            if (liveInterrupted && config.LiveWriting) { Fail("Text is ready. Review it in Recover last dictation before pasting."); return; }
-            var previousClipboard = ClipboardPaste.Snapshot();
             try { Clipboard.SetDataObject(text, true, 5, 100); }
             catch (Exception ex) { Fail("Could not copy transcript: " + ex.Message); return; }
-            if (!config.AutoPaste) { state.Move(AppState.Idle); recovery.Message = "Text copied. You can review it from the tray."; overlay.Display("Copied to clipboard", Color.FromArgb(45, 120, 75)); HideSoon(); return; }
-            uint sequence = ClipboardPaste.Sequence;
-            if (Native.Paste(target, config.PasteMethod)) { ClipboardPaste.RestoreAfterPaste(previousClipboard, sequence); state.Move(AppState.Idle); overlay.Hide(); recovery.Discard(); }
-            else Fail("Text is ready but insertion failed. Open Recover last dictation to review and copy it.");
+            state.Move(AppState.Idle); recovery.Message = "Text copied. You can review it from the tray.";
+            overlay.Display("Copied to clipboard", Color.FromArgb(45, 120, 75)); HideSoon();
         }
         void ShowRecovery()
         {
-            if (!recovery.HasWork) { tray.ShowBalloonTip(3000, "Dotflow", "There is no unfinished dictation to recover.", ToolTipIcon.Info); return; }
+            if (!recovery.HasWork) { tray.ShowBalloonTip(3000, "Notewll", "There is no unfinished dictation to recover.", ToolTipIcon.Info); return; }
             if (recoveryWindow != null && !recoveryWindow.IsDisposed) { recoveryWindow.Activate(); return; }
             recoveryWindow = new RecoveryForm(recovery, done =>
             {
@@ -375,7 +372,7 @@ namespace LocalDictation
             recovery.Message = message + " Open Recover last dictation from the tray.";
             if (hub != null && !hub.IsDisposed) hub.SetReadiness(recovery.Message);
             overlay.Display(message, Color.FromArgb(180, 90, 20));
-            tray.ShowBalloonTip(5000, "Dotflow", message, ToolTipIcon.Warning);
+            tray.ShowBalloonTip(5000, "Notewll", message, ToolTipIcon.Warning);
             var timer = new System.Windows.Forms.Timer { Interval = 6000 };
             timer.Tick += (s, e) => { timer.Stop(); if (state.Current == AppState.Error) { state.Move(AppState.Idle); overlay.Hide(); } };
             timer.Start();
@@ -434,7 +431,7 @@ namespace LocalDictation
                     next.Save();
                     if (next.StartWithWindows || next.StartWithWindows != Startup.Enabled) Startup.Set(next.StartWithWindows);
                     config = next; overlay.ReducedMotion = config.ReducedMotion; dock.Configure(config.ReducedMotion); dock.SetVisibility(config.ShowToolbar); SetShortcutBindings();
-                    tray.Text = "Dotflow - hold " + config.Hotkey;
+                    tray.Text = "Notewll - hold " + config.Hotkey;
                 };
             }
         }

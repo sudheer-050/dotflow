@@ -25,7 +25,7 @@ namespace LocalDictation
                 }
                 Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
                 try { Application.Run(new DictationApp(!background)); return 0; }
-                catch (Exception ex) { MessageBox.Show(ex.Message, "Dotflow could not start", MessageBoxButtons.OK, MessageBoxIcon.Error); return 1; }
+                catch (Exception ex) { MessageBox.Show(ex.Message, "Notewll could not start", MessageBoxButtons.OK, MessageBoxIcon.Error); return 1; }
             }
         }
 
@@ -64,7 +64,7 @@ namespace LocalDictation
                                 if (Math.Max(toolbar.Width, toolbar.Height) >= 120 || Math.Min(toolbar.Width, toolbar.Height) >= 40) throw new Exception("Resting toolbar is too large.");
                                 if (args[0] == "--toolbar-preview") CaptureHub(toolbar, System.IO.Path.ChangeExtension(args[1], ".collapsed.png"));
                                 toolbar.SetExpanded(true); Application.DoEvents();
-                                foreach (var button in toolbar.Controls.OfType<Button>().Where(b => b.AccessibleName != "Open Dotflow"))
+                                foreach (var button in toolbar.Controls.OfType<Button>().Where(b => b.AccessibleName != "Open Notewll"))
                                 {
                                     IntPtr point = (IntPtr)((button.Height / 2 << 16) | button.Width / 2);
                                     Native.SendMessage(button.Handle, 0x201, (IntPtr)1, point); Native.SendMessage(button.Handle, 0x202, IntPtr.Zero, point); Application.DoEvents();
@@ -116,7 +116,7 @@ namespace LocalDictation
                     case "--live-writing-smoke":
                         {
                             Application.EnableVisualStyles();
-                            using (var form = new Form { Text = "Dotflow input test" })
+                            using (var form = new Form { Text = "Notewll input test" })
                             using (var field = new TextBox { Dock = DockStyle.Fill, Text = "Keep this. ", Multiline = true })
                             {
                                 form.Controls.Add(field); form.Show(); form.Activate(); field.Focus(); field.SelectionStart = field.TextLength; Application.DoEvents();

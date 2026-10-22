@@ -1,22 +1,22 @@
-<p align="center"><img src="assets/local-dictation.png" width="84" alt="Dotflow four-dot logo"></p>
+<p align="center"><img src="assets/local-dictation.png" width="84" alt="Notewll four-dot logo"></p>
 
-# Dotflow
+# Notewll
 
 **Speak. Write. Keep the conversation.**
 
 Private voice typing, personal notes and meeting transcripts for Windows. Hold your shortcut to write, or capture microphone audio, computer output, or both into a local notebook.
 
-![Dotflow: your voice, on your device](assets/dotflow-banner.svg)
+![Notewll: your voice, on your device](assets/notewll-banner.svg)
 
-[Get started](#get-started) | [Features](#three-ways-to-capture) | [How it works](#how-it-works) | [Privacy](#your-data-stays-on-your-device) | [User guide](USER_GUIDE.md) | [Project story](https://myhai.org/project.html?project=dotflow)
+[Get started](#get-started) | [Features](#three-ways-to-capture) | [How it works](#how-it-works) | [Privacy](#your-data-stays-on-your-device) | [User guide](USER_GUIDE.md) | [Project story](https://myhai.org/projects/dotflow/)
 
 | Platform | Speech | Runtime | Current version |
 |---|---|---|---|
 | Windows 10/11 x64 | English, local Vosk | Native C# / .NET Framework 4.8 | 0.7.0 preview |
 
-## Why Dotflow?
+## Why Notewll?
 
-Writing and remembering a conversation are different jobs. Dotflow brings both into a small desktop app: dictate into a text field, capture a thought without keeping the main window open, or save a meeting with the original conversation separate from your own notes.
+Writing and remembering a conversation are different jobs. Notewll brings both into a small desktop app: dictate into a text field, capture a thought without keeping the main window open, or save a meeting with the original conversation separate from your own notes.
 
 The project started with a shortcut-driven dictation tool and grew into a native Windows application with an edge toolbar, selectable audio sources, local playback, and view-oriented PDF exports. Speech runs on your computer after the first setup download. No Docker, Python installation, cloud API key or account is needed to use the app.
 
@@ -46,7 +46,7 @@ Preview **Conversation only**, **Personal notes only** or **Full record**, then 
 
 ![PDF export scope and readable preview using demonstration data](assets/pdf-export.png)
 
-Original conversations are read-only inside Dotflow. An exported PDF is a copy: external tools can change it, and it is not digitally signed or tamper-proof evidence. Screenshots above use isolated demonstration data.
+Original conversations are read-only inside Notewll. An exported PDF is a copy: external tools can change it, and it is not digitally signed or tamper-proof evidence. Screenshots above use isolated demonstration data.
 
 ### Stay out of the way
 
@@ -54,19 +54,19 @@ A slim edge toolbar reveals icons on hover, with names on each icon. Drag it to 
 
 ## Get started
 
-1. **Get the source** from this repository, or check [GitHub Releases](https://github.com/sudheer-050/dotflow/releases) for available installer assets. The 0.7.0 source is available; a hosted 0.7.0 installer has not been verified here.
+1. **Get the source** from this repository, or check [GitHub Releases](https://github.com/sudheer-050/notewll/releases) for available installer assets. The unsigned 0.7.0 Windows preview installer is available in Releases.
 2. **Build the installer** on Windows if you are using the source:
 
    ```powershell
    .\scripts\build_setup.ps1
    ```
 
-3. Run `dist/Dotflow-Setup-0.7.0.exe`. It is a small bootstrapper, not the entire installed package. First installation needs internet for the pinned native runtime and approximately 40 MB English speech model; setup verifies hashes and tests model loading.
-4. Open Dotflow, complete the microphone and Practice checks, then confirm that dictation appears in another app. Speech can run offline afterwards.
+3. Run `dist/Notewll-Setup-0.7.0.exe`. It is a small bootstrapper, not the entire installed package. First installation needs internet for the pinned native runtime and approximately 40 MB English speech model; setup verifies hashes and tests model loading.
+4. Open Notewll, complete the microphone and Practice checks, then confirm that dictation appears in another app. Speech can run offline afterwards.
 
 **Requirements:** Windows 10/11 x64, .NET Framework 4.8, microphone permission for microphone capture, and an output device for system audio. No macOS, Android or iOS build is supplied. The preview installer is unsigned; there is no configured signed automatic-update feed. Review the source and release hashes before choosing to install it.
 
-For terminal input, select Auto, Ctrl+Shift+V or Shift+Insert in Writing preferences as appropriate for your terminal. Dotflow does not send Enter. Held modifier combinations can delay live insertion until release.
+For terminal input, select Auto, Ctrl+Shift+V or Shift+Insert in Writing preferences as appropriate for your terminal. Notewll does not send Enter. Held modifier combinations can delay live insertion until release.
 
 ## How it works
 
@@ -108,8 +108,8 @@ The current model is deliberately small. Quiet speech, proper names, overlapping
 ## Development
 
 ```powershell
-git clone https://github.com/sudheer-050/dotflow.git
-cd dotflow
+git clone https://github.com/sudheer-050/notewll.git
+cd notewll
 .\scripts\build_setup.ps1
 ```
 
@@ -121,6 +121,6 @@ Builds use the installed Windows .NET compiler. Python is needed only for the op
 - [Release notes](RELEASE_NOTES.md): what changed in 0.7.0.
 - [Fix report](FIX_REPORT_0.7.0.md): implementation evidence and outstanding acceptance work.
 - [Third-party notices](THIRD_PARTY_NOTICES.md): included components and their licenses.
-- [Report an issue](https://github.com/sudheer-050/dotflow/issues): include your Windows version, capture mode and steps to reproduce; keep private recordings out of public issues.
+- [Report an issue](https://github.com/sudheer-050/notewll/issues): include your Windows version, capture mode and steps to reproduce; keep private recordings out of public issues.
 
 Built by [Sudheer Kumar Gandiboyana](https://github.com/sudheer-050).

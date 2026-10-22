@@ -25,7 +25,7 @@ namespace LocalDictation
                 var names = new CheckBox { Text = "Include participant and speaker labels", AutoSize = true, Dock = DockStyle.Top, Margin = new Padding(0, 10, 0, 8) };
                 choices.Controls.Add(scope); choices.Controls.Add(names); layout.Controls.Add(choices, 0, 1);
                 layout.Controls.Add(DialogUi.Text("Spoken names remain in the text. This choice only controls participant and speaker labels."), 0, 2);
-                layout.Controls.Add(DialogUi.Text("Your original conversation stays read-only in Dotflow. A PDF copy can still be changed by external tools; it is not tamper-proof."), 0, 3);
+                layout.Controls.Add(DialogUi.Text("Your original conversation stays read-only in Notewll. A PDF copy can still be changed by external tools; it is not tamper-proof."), 0, 3);
                 var preview = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, BorderStyle = BorderStyle.None, DetectUrls = false, WordWrap = true, AccessibleName = "PDF content preview", Margin = new Padding(0, 8, 0, 12) }; layout.Controls.Add(preview, 0, 4);
                 Func<NoteDocument> snapshot = () => NoteExport.Scope(note, scope.SelectedIndex, names.Checked);
                 Action refresh = () => preview.Text = DialogUi.Lines(NoteExport.PreviewText(snapshot()));

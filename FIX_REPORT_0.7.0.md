@@ -1,8 +1,8 @@
-# Dotflow 0.7.0 implementation report
+# Notewll 0.7.0 implementation report
 
 The review fixes are implemented locally and packaged. This is not a claim that all 38 acceptance criteria are closed: signing, speech-quality measurement, desktop integration and accessibility need external inputs or a normal desktop session. The installed 0.6.1 app was left intact, and no release was published by this session.
 
-The largest changes are PDF-only export, safer device preferences, clearer recording/review separation, responsive dialogs and playback, organized storage, explicit writing styles, guided Practice and consistent Dotflow branding. Original conversation words remain read-only; editable titles, speaker metadata and personal notes are separate. No distributed PDF can be guaranteed impossible to modify externally.
+The largest changes are PDF-only export, safer device preferences, clearer recording/review separation, responsive dialogs and playback, organized storage, explicit writing styles, guided Practice and consistent Notewll branding. Original conversation words remain read-only; editable titles, speaker metadata and personal notes are separate. No distributed PDF can be guaranteed impossible to modify externally.
 
 ## Review disposition
 
@@ -26,7 +26,7 @@ The largest changes are PDF-only export, safer device preferences, clearer recor
 | UR16 | Open acceptance work | Needs consented reference speech/call corpus and comparison. Silence tests do not establish speech quality. |
 | UR17 | Implemented | Smaller Home header/cards, recent work closer to primary actions. |
 | UR18 | Implemented | Recovery/issues hidden from clean Home until relevant. |
-| UR19 | Implemented | Dotflow visible brand, installer, shortcuts and assembly product metadata. Internal upgrade/data identifiers preserved. |
+| UR19 | Implemented | Notewll visible brand, installer, shortcuts and assembly product metadata. Internal upgrade/data identifiers preserved. |
 | UR20 | Improved | Shared dialog spacing, themed tab strip/dropdowns/list headers; no framework rewrite. |
 | UR21 | Improved; desktop acceptance pending | Dark dropdown/tab rendering improved. Native arrow chrome can remain; real high-contrast/theme matrix pending. |
 | UR22 | Implemented | Search/filter list, Add/Edit forms, word/snippet choices; JSON actions under More. |
@@ -58,7 +58,7 @@ The largest changes are PDF-only export, safer device preferences, clearer recor
 
 ## Delivery
 
-Installer: `dist/Dotflow-Setup-0.7.0.exe` (Windows x64 bootstrapper). Initial installation needs internet to obtain the pinned runtime and small English model. Existing notes/preferences are preserved using compatible internal paths. The installer is unsigned because a real certificate was not provided. Keep a backup of important notes before any upgrade.
+Installer: `dist/Notewll-Setup-0.7.0.exe` (Windows x64 bootstrapper). Initial installation needs internet to obtain the pinned runtime and small English model. Existing notes/preferences are preserved using compatible internal paths. The installer is unsigned because a real certificate was not provided. Keep a backup of important notes before any upgrade.
 
 SHA-256: `C261A1FC832BCDDA472231C48DEED828DF6192C0444F0B1A4D62E4822054227C`
 

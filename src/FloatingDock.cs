@@ -24,7 +24,7 @@ namespace LocalDictation
     // A non-activating controller: clicking Write keeps the user's original text field focused.
     sealed class FloatingDock : Form
     {
-        readonly DockButton write = new DockButton { Text = "Dictate", AccessibleName = "Toggle dictation" }, note = new DockButton { Text = "Note", AccessibleName = "Toggle personal note" }, meeting = new DockButton { Text = "Meeting", AccessibleName = "Toggle meeting note" }, more = new DockButton { Text = "Open app", AccessibleName = "Open Dotflow" };
+        readonly DockButton write = new DockButton { Text = "Dictate", AccessibleName = "Toggle dictation" }, note = new DockButton { Text = "Note", AccessibleName = "Toggle personal note" }, meeting = new DockButton { Text = "Meeting", AccessibleName = "Toggle meeting note" }, more = new DockButton { Text = "Open app", AccessibleName = "Open Notewll" };
         readonly Panel grip = new Panel { Cursor = Cursors.SizeAll };
         readonly Label status = new Label { Text = "Ready · hold the dots to move", ForeColor = Color.FromArgb(170, 177, 185), AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
         readonly ToolTip hints = new ToolTip { InitialDelay = 200, ReshowDelay = 100, ShowAlways = true };
@@ -43,7 +43,7 @@ namespace LocalDictation
         public Action<Point> PositionSaved;
         public FloatingDock()
         {
-            Text = "Dotflow toolbar"; Icon = AppLogo.Icon; FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; TopMost = true; AutoScaleMode = AutoScaleMode.None; BackColor = Color.FromArgb(25, 27, 30); ClientSize = new Size(326, 72); StartPosition = FormStartPosition.Manual;
+            Text = "Notewll toolbar"; Icon = AppLogo.Icon; FormBorderStyle = FormBorderStyle.None; ShowInTaskbar = false; TopMost = true; AutoScaleMode = AutoScaleMode.None; BackColor = Color.FromArgb(25, 27, 30); ClientSize = new Size(326, 72); StartPosition = FormStartPosition.Manual;
             grip.Paint += (s, e) =>
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -66,7 +66,7 @@ namespace LocalDictation
                 button.Font = new Font("Segoe UI", 8);
 
             }
-            hints.SetToolTip(write, "Dictation"); hints.SetToolTip(note, "Personal notes"); hints.SetToolTip(meeting, "Meeting notes"); hints.SetToolTip(more, "Open Dotflow");
+            hints.SetToolTip(write, "Dictation"); hints.SetToolTip(note, "Personal notes"); hints.SetToolTip(meeting, "Meeting notes"); hints.SetToolTip(more, "Open Notewll");
             hover.Tick += (s, e) =>
             {
                 if (snoozedUntil != DateTime.MinValue) { if (DateTime.Now >= snoozedUntil) { snoozedUntil = DateTime.MinValue; if (enabled) Show(); } return; }
@@ -168,7 +168,7 @@ namespace LocalDictation
         public void UpdateState(bool writing, bool processing, bool notesRecording, bool noteBusy, bool isMeeting, string message)
         {
             write.Text = processing ? "Refining" : "Dictate"; note.Text = "Note"; meeting.Text = "Meeting"; more.Text = "Open app";
-            cancelAvailable = writing || processing; more.Glyph = cancelAvailable ? "\uE711" : "\uE8A7"; more.AccessibleName = cancelAvailable ? "Cancel dictation" : "Open Dotflow"; hints.SetToolTip(more, cancelAvailable ? "Cancel dictation" : "Open Dotflow");
+            cancelAvailable = writing || processing; more.Glyph = cancelAvailable ? "\uE711" : "\uE8A7"; more.AccessibleName = cancelAvailable ? "Cancel dictation" : "Open Notewll"; hints.SetToolTip(more, cancelAvailable ? "Cancel dictation" : "Open Notewll");
             write.Active = writing; note.Active = notesRecording && !isMeeting; meeting.Active = notesRecording && isMeeting;
             write.Enabled = !noteBusy && !processing; note.Enabled = !writing && !processing && (!noteBusy || notesRecording && !isMeeting); meeting.Enabled = !writing && !processing && (!noteBusy || notesRecording && isMeeting);
             hints.SetToolTip(write, writing ? "Stop dictation" : processing ? "Refining text" : "Dictation");

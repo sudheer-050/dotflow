@@ -1,4 +1,4 @@
-﻿# Audit implementation status â€” 0.6.1
+# Audit implementation status â€” 0.6.1
 
 2026-10-21. All 54 findings from output/ux-audit/GAPS.csv are tracked below. Implemented means the described local change exists; it does not assert a passed real microphone/call/desktop acceptance test. Partial items retain their stated limits. This is not a claim that all audit work is complete.
 
@@ -82,7 +82,7 @@
 
 Remaining release acceptance: normal-user microphone and both-source call capture, pause/resume under device changes, playback/speed, terminal/browser insertion, clipboard formats, recovery after focus changes, exit-under-load, mixed-DPI edge positioning, keyboard/Narrator/high contrast, and consented speech/noise accuracy fixtures. No live Wispr comparison was performed.
 
-The installer and update metadata are local only. Source and the unsigned preview prerelease target `sudheer-050/dotflow` (the verified GitHub login). A GitHub profile is not a Windows signing certificate. Supply/configure a real certificate and exact repository before public signed delivery. The installed 0.5.0 app was not overwritten by this build.
+The installer and update metadata are local only. Source and the unsigned preview prerelease target `sudheer-050/notewll` (the verified GitHub login). A GitHub profile is not a Windows signing certificate. Supply/configure a real certificate and exact repository before public signed delivery. The installed 0.5.0 app was not overwritten by this build.
 
 0.6.1 additional evidence: native 16-stream shutdown and continuous two-source silence checks passed; all eight synthetic-noise/gate combinations produced empty text; Windows media seek/speed/pause/close passed. Managed-session device capture failed with UnauthorizedAccessException and keyboard insertion was blocked. These are recorded external acceptance limits, not passing tests. Source-publication snapshots exclude output, recordings, caches and local preferences.
 

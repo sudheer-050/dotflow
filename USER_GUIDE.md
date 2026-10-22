@@ -1,8 +1,8 @@
-# Dotflow 0.7.0 user guide
+# Notewll 0.7.0 user guide
 
 ## Install and start
 
-Run `dist/Dotflow-Setup-0.7.0.exe`. First installation downloads the English model/runtime and needs internet; speech later works offline. Exit the old app if requested. Setup reports successful installation separately and offers Open app. Start opens the hub; closing it leaves the app running. Exit in the Windows system tray quits it.
+Run `dist/Notewll-Setup-0.7.0.exe`. First installation downloads the English model/runtime and needs internet; speech later works offline. Exit the old app if requested. Setup reports successful installation separately and offers Open app. Start opens the hub; closing it leaves the app running. Exit in the Windows system tray quits it.
 
 Home offers Dictate, New note, Record meeting and recent work. First-run guidance includes permission and practice steps. Preferences > Recording has microphone testing, Check speech engine and setup repair.
 
@@ -11,6 +11,8 @@ Home offers Dictate, New note, Record meeting and recent work. First-run guidanc
 Click your target field, hold F8 and speak, then release to refine. Escape cancels. In Recording, use the shortcut recorder to press/release another combination. Function keys support the most direct live writing; held Ctrl/Alt/Shift/Win combinations can delay insertion until release. Windows or other apps may intercept shortcuts.
 
 Avoid moving the cursor or typing during capture. If insertion is interrupted, Recover last dictation shows the final text and warns about partial insertion. Retry processes retained audio without automatically pasting it; Copy explicitly changes the clipboard; Discard clears recovery. Recovery lasts until exit or the next attempt. An ordinary successful paste attempts to restore your previous clipboard unless you copied something newer.
+
+Dictation types directly into the focused text field without inspecting its contents or automatically retrying by paste. Click inside the message field before starting; release shortcut modifiers before text is inserted. With live writing disabled, the finished transcript is typed on release.
 
 Writing preferences select cleanup/verbatim, live writing, terminal paste and local dictionary/snippets. Windows Terminal commonly uses Ctrl+Shift+V; classic consoles use Shift+Insert. No Enter is added. Windows can block insertion into an administrator window. Playground previews cleanup and can transcribe a PCM 16 kHz mono WAV.
 

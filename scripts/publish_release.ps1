@@ -1,9 +1,9 @@
-param([string]$Repository = 'sudheer-050/dotflow', [switch]$PrepareOnly)
+param([string]$Repository = 'sudheer-050/notewll', [switch]$PrepareOnly)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $version = '0.7.0'
-$stage = Join-Path $projectRoot "release\dotflow-$version"
-$installer = Join-Path $projectRoot "dist\Dotflow-Setup-$version.exe"
+$stage = Join-Path $projectRoot "release\notewll-$version"
+$installer = Join-Path $projectRoot "dist\Notewll-Setup-$version.exe"
 $releaseNotes = Join-Path $projectRoot "dist\RELEASE_NOTES-$version.md"
 if ($Repository -notmatch '^[A-Za-z0-9-]+/[A-Za-z0-9_.-]+$') { throw 'Use owner/repository for the GitHub repository.' }
 if (-not (Test-Path -LiteralPath $installer)) { throw 'Build and verify the installer first.' }
@@ -35,7 +35,7 @@ $ErrorActionPreference = 'Continue'
 $who = Invoke-Native { gh api user --jq '.login' }
 if ($who.Code -ne 0) { throw "Could not reach GitHub with the current credentials: $($who.Output)" }
 $account = $who.Output.Trim()
-if ($account -ne $Repository.Split('/')[0]) { throw "GitHub is signed into $account; use -Repository $account/dotflow or sign into the requested owner." }
+if ($account -ne $Repository.Split('/')[0]) { throw "GitHub is signed into $account; use -Repository $account/notewll or sign into the requested owner." }
 $repoState = Invoke-Native { gh repo view $Repository --json name,isEmpty }
 $exists = $repoState.Code -eq 0
 if (-not $exists -and $repoState.Output -notmatch 'Could not resolve to a Repository|HTTP 404|Not Found') { throw "Could not check the repository: $($repoState.Output)" }
@@ -49,7 +49,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $stage '.git'))) {
 if ($LASTEXITCODE -ne 0) { throw 'Could not stage the release snapshot.' }
 & git -C $stage diff --cached --quiet
 if ($LASTEXITCODE -ne 0) {
-    & git -C $stage commit -m "Release Local Dictation $version as Dotflow Windows preview"
+    & git -C $stage commit -m "Release Local Dictation $version as Notewll Windows preview"
     if ($LASTEXITCODE -ne 0) { throw 'Could not commit the release snapshot.' }
 }
 if (-not $exists) {
@@ -74,7 +74,7 @@ $hashFile = Join-Path $projectRoot 'dist\SHA256SUMS.txt'
 ((Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + [IO.Path]::GetFileName($installer)) | Set-Content -LiteralPath $hashFile -Encoding ASCII
 $assets = @($installer, $hashFile)
 if ($signature.Status -eq 'Valid') { $assets += (Join-Path $projectRoot 'dist\update.json') }
-$title = "Dotflow $version - Windows preview" + $(if ($signature.Status -eq 'Valid') { '' } else { ' (unsigned)' })
+$title = "Notewll $version - Windows preview" + $(if ($signature.Status -eq 'Valid') { '' } else { ' (unsigned)' })
 $rel = Invoke-Native { gh release view "v$version" --repo $Repository --json url }
 if ($rel.Code -eq 0) {
     & gh release upload "v$version" @assets --repo $Repository --clobber

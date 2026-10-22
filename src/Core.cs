@@ -5,8 +5,8 @@ using System.Net;
 using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
 
-[assembly: System.Reflection.AssemblyTitle("Dotflow")]
-[assembly: System.Reflection.AssemblyProduct("Dotflow")]
+[assembly: System.Reflection.AssemblyTitle("Notewll")]
+[assembly: System.Reflection.AssemblyProduct("Notewll")]
 [assembly: System.Reflection.AssemblyVersion("0.7.0.0")]
 [assembly: System.Reflection.AssemblyFileVersion("0.7.0.0")]
 

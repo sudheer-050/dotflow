@@ -23,8 +23,8 @@ jobs:
         run: ./scripts/prepare_release.ps1 -Repository '${{ github.repository }}'
       - uses: actions/upload-artifact@v4
         with:
-          name: LocalDictation-Windows-preview
+          name: Notewll-Windows-preview
           path: |
-            dist/Dotflow-Setup-0.7.0.exe
+            dist/Notewll-Setup-0.7.0.exe
             dist/update.json
             dist/RELEASE_NOTES-0.7.0.md

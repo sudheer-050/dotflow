@@ -142,7 +142,7 @@ namespace LocalDictation
         public SettingsForm(Config config, string lastRaw, string lastCleaned, NoteStore noteStore = null)
         {
             SuspendLayout();
-            source = config; ThemeColors.Mode = config.Theme; Icon = AppLogo.Icon; Text = "Dotflow"; BackColor = Paper; ForeColor = Ink;
+            source = config; ThemeColors.Mode = config.Theme; Icon = AppLogo.Icon; Text = "Notewll"; BackColor = Paper; ForeColor = Ink;
             Font = new Font("Segoe UI", 10); ClientSize = new Size(1080, 740); MinimumSize = new Size(960, 690);
             AutoScaleMode = AutoScaleMode.None; StartPosition = FormStartPosition.CenterScreen;
             Controls.Add(host); Controls.Add(sidebar);
@@ -205,7 +205,7 @@ namespace LocalDictation
         {
             var icon = new Panel { Left = 22, Top = 34, Width = 36, Height = 36, BackColor = Color.Transparent };
             icon.Paint += (s, e) => { e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic; e.Graphics.DrawImage(AppLogo.Image, icon.ClientRectangle); };
-            parent.Controls.Add(icon); Label(parent, "Dotflow", 68, 31, 112, 50, 12, true, Ink);
+            parent.Controls.Add(icon); Label(parent, "Notewll", 68, 31, 112, 50, 12, true, Ink);
             Label(parent, "PRIVATE. OFFLINE.", 22, 99, 160, 20, 8, true, Muted);
         }
         void Heading(Panel page, string title, string subtitle)
