@@ -8,7 +8,7 @@ Private voice typing, personal notes and meeting transcripts for Windows. Hold y
 
 ![Dotflow: your voice, on your device](assets/dotflow-banner.svg)
 
-[Get started](#get-started) ? [Features](#three-ways-to-capture) ? [How it works](#how-it-works) ? [Privacy](#your-data-stays-on-your-device) ? [User guide](USER_GUIDE.md) ? [Project story](https://myhai.org/project.html?project=dotflow)
+[Get started](#get-started) | [Features](#three-ways-to-capture) | [How it works](#how-it-works) | [Privacy](#your-data-stays-on-your-device) | [User guide](USER_GUIDE.md) | [Project story](https://myhai.org/project.html?project=dotflow)
 
 | Platform | Speech | Runtime | Current version |
 |---|---|---|---|
