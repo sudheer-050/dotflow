@@ -124,9 +124,10 @@ namespace LocalDictation
         readonly ManualResetEvent liveIdle = new ManualResetEvent(true);
         int liveBusy;
         LiveRecognition liveRecognition;
-        LiveGrammar liveGrammar;
         string liveInserted = "";
-        bool liveInterrupted, noteIndicator, sessionLiveWriting;
+        bool liveInterrupted, noteIndicator, sessionLiveWriting, sessionAccurate;
+        volatile bool prewarming;
+        int engineGeneration, lastAccurateBytes;
         IntPtr hook, target;
         IntPtr previousApp;
         Config config;
@@ -152,6 +153,7 @@ namespace LocalDictation
             string label = state.Current == AppState.Recording ? "Writing live - click Stop to refine" : state.Current == AppState.Processing ? "Refining your words..." : recording ? (hub.Notes.Document != null && hub.Notes.Document.Kind == "Meeting" ? "Recording meeting" : "Recording note") : busy ? "Saving your note..." : "Ready - drag the grip to move";
             if (recording && hub.Notes.Document != null) label += " " + TimeSpan.FromSeconds(hub.Notes.RecordingSeconds).ToString(@"mm\:ss") + " - click Stop to save";
             if (!recording && !busy && hub != null && !String.IsNullOrWhiteSpace(hub.Notes.Feedback)) label = hub.Notes.Feedback;
+            if (!recording && !busy && state.Current == AppState.Idle && config.AccurateDictationEnabled && !AccurateSpeech.Ready) label = engineReadiness;
             dock.UpdateState(state.Current == AppState.Recording, state.Current == AppState.Processing, recording, busy, recording && hub.Notes.Document != null && hub.Notes.Document.Kind == "Meeting", label);
         }
         int generation;
@@ -178,7 +180,7 @@ namespace LocalDictation
             menu.Items.Add("Preferences", null, (s, e) => ShowHub("Preferences"));
             menu.Items.Add("Stop and save note", null, (s, e) => { if (hub != null && hub.IsNoteRecording) hub.ToggleNote(hub.NoteMode); });
             menu.Items.Add("Exit", null, (s, e) => ExitThread());
-            tray = new NotifyIcon { Icon = AppLogo.Icon, Text = "Notewll 0.8.0 - hold " + config.Hotkey, Visible = true, ContextMenuStrip = menu };
+            tray = new NotifyIcon { Icon = AppLogo.Icon, Text = "Notewll 0.8.1 - hold " + config.Hotkey, Visible = true, ContextMenuStrip = menu };
             dock.RestorePosition(config.ToolbarX, config.ToolbarY);
             dock.Configure(config.ReducedMotion); dock.CancelWrite = Cancel;
             dock.ToggleWrite = () => { if (state.Current == AppState.Recording) StopRecording(); else StartRecording(); UpdateDock(); };
@@ -215,7 +217,7 @@ namespace LocalDictation
                 if (!overlay.IsDisposed) PostUi(() => ShowHub("Home"));
             }, null, Timeout.Infinite, false);
             if (showHub) PostUi(() => ShowHub("Home"));
-            ThreadPool.QueueUserWorkItem(_ => Prewarm());
+            Prewarm();
             if (config.CheckUpdatesOnStart) CheckStartupUpdate();
         }
         async void CheckStartupUpdate()
@@ -232,17 +234,39 @@ namespace LocalDictation
         }
         void Prewarm()
         {
-            string problem = SpeechEngine.EnsureRunning(config, 150); engineReadiness = problem ?? "Ready - English speech stays on this device."; PostUi(() => { if (hub != null && !hub.IsDisposed) hub.SetReadiness(engineReadiness); });
-            if (problem != null && tray.Visible) PostUi(() => { ReportIssue(problem); tray.ShowBalloonTip(6000, "Notewll", problem, ToolTipIcon.Warning); });
-            try { if (SpeechQuality.Available(config)) SpeechQuality.TryRefine(config.Copy(), "Hello."); } catch { }
+            var cfg = config.Copy(); int revision = ++engineGeneration; prewarming = true;
+            engineReadiness = cfg.AccurateDictationEnabled ? "Preparing accurate local speech..." : "Preparing basic offline speech...";
+            if (hub != null && !hub.IsDisposed) hub.SetReadiness(engineReadiness);
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                string problem = null;
+                try
+                {
+                    if (cfg.AccurateDictationEnabled) AccurateSpeech.Warmup(cfg);
+                    else { AccurateSpeech.Shutdown(); problem = SpeechEngine.EnsureRunning(cfg, 30); }
+                }
+                catch (Exception ex) { problem = ex.Message; }
+                string detail = problem;
+                PostUi(() =>
+                {
+                    if (revision != engineGeneration) return;
+                    prewarming = false;
+                    engineReadiness = detail ?? (cfg.AccurateDictationEnabled ? "Ready - accurate local speech with speech detection." : "Ready - basic offline speech.");
+                    if (hub != null && !hub.IsDisposed) hub.SetReadiness(engineReadiness);
+                    if (detail != null) ReportIssue(detail);
+                    UpdateDock();
+                });
+            });
         }
 
         void StartRecording()
         {
             if (state.Current != AppState.Idle || recovering) return;
             if (hub != null && hub.IsTesting) return;
+            if (config.AccurateDictationEnabled && (prewarming || !AccurateSpeech.Ready)) { if (!prewarming) Prewarm(); UpdateDock(); return; }
             target = Native.GetForegroundWindow();
             sessionLiveWriting = config.LiveWriting;
+            sessionAccurate = config.AccurateDictationEnabled; lastAccurateBytes = 0;
             try
             {
                 var rec = new MicRecorder(config.Microphone);
@@ -250,7 +274,7 @@ namespace LocalDictation
                 recorder = rec;
             }
             catch (Exception ex) { Fail("Microphone problem: " + ex.Message); return; }
-            state.Move(AppState.Recording); generation++; if (liveRecognition != null) liveRecognition.Dispose(); liveRecognition = new LiveRecognition(); var grammarConfig = config.Copy(); liveGrammar = new LiveGrammar(text => SpeechQuality.TryRefine(grammarConfig, text)); liveInserted = ""; liveInterrupted = mouseHook == IntPtr.Zero; liveTimer.Start();
+            state.Move(AppState.Recording); generation++; if (liveRecognition != null) liveRecognition.Dispose(); liveRecognition = new LiveRecognition(sessionAccurate ? config.Copy() : null); liveInserted = ""; liveInterrupted = mouseHook == IntPtr.Zero; liveTimer.Start();
             if (config.ShowVoiceIndicator) overlay.Display("● Recording from " + recorder.DeviceName + (recorder.FellBack ? " (saved mic not found — using default)" : "") + " — release " + config.Hotkey, Color.FromArgb(190, 45, 45));
         }
 
@@ -259,15 +283,15 @@ namespace LocalDictation
             if (state.Current != AppState.Recording || recorder == null || Interlocked.CompareExchange(ref liveBusy, 1, 0) != 0) return;
             byte[] pcm = recorder.Snapshot(); int peak = recorder.Peak; int gen = generation; var cfg = config; var recognition = liveRecognition;
             if (pcm.Length < 8000 || peak < 150) { Interlocked.Exchange(ref liveBusy, 0); return; }
-            var grammar = liveGrammar;
+            if (sessionAccurate && pcm.Length - lastAccurateBytes < 16000) { Interlocked.Exchange(ref liveBusy, 0); return; }
+            lastAccurateBytes = pcm.Length;
             liveIdle.Reset();
             ThreadPool.QueueUserWorkItem(_ =>
             {
                 try
                 {
                     string text = recognition.Snapshot(pcm, peak, false);
-                    string corrected = grammar.Resolve(text.Trim(), 0);
-                    string formatted = WritingFormat.Compose(cfg, corrected);
+                    string formatted = WritingFormat.Compose(cfg, text.Trim());
                     if (!overlay.IsDisposed) PostUi(() => { if (gen == generation && state.Current == AppState.Recording && sessionLiveWriting) ApplyLiveText(formatted); });
                 }
                 catch { } // The complete recording still goes through normal recovery on release.
@@ -292,20 +316,19 @@ namespace LocalDictation
             int peak = recorder.Peak;
             recorder.Dispose(); recorder = null;
             recovery.Audio = (byte[])pcm.Clone(); recovery.Text = liveInserted; recovery.Message = "Captured speech can be retried.";
-            if (pcm.Length < 16000 * 2 / 3 || peak < 150) { Cancel(); return; }
+            if (pcm.Length < 16000 * 2 / 3 || !sessionAccurate && peak < 150) { Cancel(); return; }
             state.Move(AppState.Processing);
             if (config.ShowVoiceIndicator) overlay.Display("Transcribing locally…", Color.FromArgb(50, 90, 170));
             int gen = ++generation;
-            var cfg = config; var recognition = liveRecognition; var grammar = liveGrammar;
+            var cfg = config; var recognition = liveRecognition;
             ThreadPool.QueueUserWorkItem(_ =>
             {
                 try
                 {
-                    liveIdle.WaitOne();
+                    if (!liveIdle.WaitOne(12000)) throw new SttException("Local speech did not finish. Open Recover last dictation to keep or retry the captured audio.");
                     string raw = recognition != null ? recognition.Snapshot(pcm, peak, true) : SpeechEngine.Transcribe(cfg, MicRecorder.ToWav(MicRecorder.Normalize(pcm, peak)));
                     if (recognition != null) recognition.Dispose();
-                    string refined = grammar != null ? grammar.Resolve(raw.Trim(), 600) : raw;
-                    PostUi(() => { if (!exiting && gen == generation) Finish(raw, refined); });
+                    PostUi(() => { if (!exiting && gen == generation) Finish(raw, raw); });
                 }
                 catch (Exception ex) { PostUi(() => { if (gen == generation) Fail(ex.Message); }); }
             });
@@ -343,7 +366,7 @@ namespace LocalDictation
                 var original = recovery.Audio; var audio = original == null ? null : (byte[])original.Clone(); if (audio == null || recovering) { done(); return; } int revision = recovery.Revision; recovering = true;
                 ThreadPool.QueueUserWorkItem(_ =>
                 {
-                    try { string recognized = SpeechQuality.Available(config) ? SpeechQuality.Recognize(config, audio, false).text : SpeechEngine.Transcribe(config, MicRecorder.ToWav(audio)); string recovered = WritingFormat.Compose(config, SpeechQuality.Refine(config, recognized)); if (revision == recovery.Revision) { recovery.Text = recovered; recovery.Message = "Recovered. Copy only what you need."; } }
+                    try { string recognized = DictationSpeech.Transcribe(config, audio); string recovered = WritingFormat.Compose(config, recognized); if (revision == recovery.Revision) { recovery.Text = recovered; recovery.Message = "Recovered. Copy only what you need."; } }
                     catch (Exception ex) { if (revision == recovery.Revision) recovery.Message = ex.Message; }
                     finally { recovering = false; Array.Clear(audio, 0, audio.Length); done(); }
                 });
@@ -435,7 +458,9 @@ namespace LocalDictation
                     if (state.Current != AppState.Idle || hub.IsTesting) throw new InvalidOperationException("Finish dictating before saving preferences.");
                     next.Save();
                     if (next.StartWithWindows || next.StartWithWindows != Startup.Enabled) Startup.Set(next.StartWithWindows);
+                    bool speechChanged = next.AccurateDictationEnabled != config.AccurateDictationEnabled || next.QualityPython != config.QualityPython;
                     config = next; overlay.ReducedMotion = config.ReducedMotion; dock.Configure(config.ReducedMotion); dock.SetVisibility(config.ShowToolbar); SetShortcutBindings();
+                    if (speechChanged) Prewarm();
                     tray.Text = "Notewll - hold " + config.Hotkey;
                 };
             }
@@ -470,7 +495,7 @@ namespace LocalDictation
             if (showHubEvent != null) showHubEvent.Dispose();
             if (hub != null) { hub.CloseToTray = false; hub.Dispose(); }
             if (recorder != null) recorder.Dispose();
-            if (liveRecognition != null) liveRecognition.Dispose(); SpeechEngine.Shutdown(); ThreadPool.QueueUserWorkItem(_ => SpeechQuality.Shutdown());
+            if (liveRecognition != null) liveRecognition.Dispose(); SpeechEngine.Shutdown(); ThreadPool.QueueUserWorkItem(_ => SpeechQuality.Shutdown()); ThreadPool.QueueUserWorkItem(_ => AccurateSpeech.Shutdown());
             if (hook != IntPtr.Zero) Native.UnhookWindowsHookEx(hook);
             tray.Visible = false; tray.Dispose(); overlay.Close(); base.ExitThreadCore();
         }

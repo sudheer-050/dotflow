@@ -1,3 +1,28 @@
+# Notewll 0.8.1 - local accuracy candidate
+
+Local review build; not published. Optional accurate dictation uses a persistent CPU Parakeet recognizer and Silero speech detection. Recognition starts while you speak. Shortcut formatting no longer waits for a separate grammar model. Accurate dictation and enhanced meeting notes have independent preferences; existing notes and originals are preserved.
+
+Measured controls: no text on 21 synthetic non-speech clips and two saved empty clips. Thirteen speech replays finished with median 248 ms release latency; 12 finished within one second and one took 2,077 ms. These are warm backend replay timings, not physical microphone-to-keyboard measurements. True word error rate remains unknown without human-verified references.
+
+117 automated checks passed; four live desktop checks were excluded. See verification/ACCURACY_0.8.1.md for evidence and remaining acceptance checks. Public release is blocked until reviewed accuracy references pass the release gate.
+
+## What changed and improved
+
+- Recognition: optional accurate dictation replaces the small Vosk shortcut recognizer with local CPU Parakeet. It processes speech during recording and stays warm between uses.
+- Silence: neural speech detection suppresses recognition on non-speech. All 21 measured silence/noise controls returned no text, compared with four false raw outputs in the earlier recognizer controls.
+- Formatting: shortcut completion uses deterministic cleanup instead of waiting for Ollama. Legacy grammar cleanup rejects changes to names, numbers, negation and other recognized words.
+- Measured recognition comparison: disagreement with saved Wispr hypotheses decreased from 15 to 10 word edits over 51 baseline words. Wispr output is not ground truth, so this is not a verified accuracy score or proof of superiority.
+- Responsiveness: background recognition overlaps speaking; release timing includes outstanding work. Cancellation avoids waiting on the recognition lock.
+- Consistency: Practice, file checks and recovery use the selected dictation engine. Accurate dictation and enhanced meeting notes have independent settings.
+- Installation: updater checks folder write access before closing the app, backs up changed files and verifies payload hashes. Existing notes, recordings and preferences are preserved.
+- Release checks: publication requires human-reviewed references and a passing accuracy gate. Default targets are at least 300 speech cases, 3,000 reference words and at most 3% word error rate.
+
+## Known limits and availability
+
+This is a source preview, not a published installer release. The one-second target is not met for every clip. Startup takes several seconds while the engine warms; wait for Ready. Physical microphone/shortcut typing and human-verified accuracy still require acceptance testing. Optional setup downloads model files; recognition runs locally. Basic mode remains available.
+
+The following notes describe the historical 0.8.0 release.
+
 # Notewll 0.8.0 - faster local dictation
 
 Windows x64, English speech, unsigned preview. Recognition and grammar stay on your computer.

@@ -12,7 +12,7 @@ Private voice typing, personal notes and meeting transcripts for Windows. Hold y
 
 | Platform | Speech | Runtime | Current version |
 |---|---|---|---|
-| Windows 10/11 x64 | English, local Vosk | Native C# / .NET Framework 4.8 | 0.8.0 preview |
+| Windows 10/11 x64 | English, local Vosk | Native C# / .NET Framework 4.8 | 0.8.1 local candidate |
 
 ## Why Notewll?
 
@@ -54,14 +54,14 @@ A slim edge toolbar reveals icons on hover, with names on each icon. Drag it to 
 
 ## Get started
 
-1. **Get the source** from this repository, or check [GitHub Releases](https://github.com/sudheer-050/notewll/releases) for available installer assets. The unsigned 0.8.0 Windows preview installer is available in Releases.
+1. **Get the source** from this repository, or check [GitHub Releases](https://github.com/sudheer-050/notewll/releases) for available installer assets. Version 0.8.1 is a local validation candidate; check Releases for the last published installer.
 2. **Build the installer** on Windows if you are using the source:
 
    ```powershell
    .\scripts\build_setup.ps1
    ```
 
-3. Run `dist/Notewll-Setup-0.8.0.exe`. It is a small bootstrapper, not the entire installed package. First installation needs internet for the pinned native runtime and approximately 40 MB English speech model; setup verifies hashes and tests model loading.
+3. Run `dist/Notewll-Setup-0.8.1.exe`. It is a small bootstrapper, not the entire installed package. First installation needs internet for the pinned native runtime and approximately 40 MB English speech model; setup verifies hashes and tests model loading.
 4. Open Notewll, complete the microphone and Practice checks, then confirm that dictation appears in another app. Speech can run offline afterwards.
 
 **Requirements:** Windows 10/11 x64, .NET Framework 4.8, microphone permission for microphone capture, and an output device for system audio. No macOS, Android or iOS build is supplied. The preview installer is unsigned; there is no configured signed automatic-update feed. Review the source and release hashes before choosing to install it.
@@ -99,15 +99,17 @@ flowchart LR
 - Recording computer output captures all apps using the selected output device. Choose the device used by your call and use headphones to reduce duplicated audio. Record only with the appropriate participants' consent.
 - Recently deleted recovery, explicit permanent deletion, opt-in retention and ZIP backup/restore help manage saved records. Backups contain active notes, not preferences, deleted records or speech components.
 
-## Enhanced speech preview
+## Accurate local dictation
 
-Version 0.8.0 recognizes shortcut dictation while you speak, then finishes the live transcript on release. Silence and quick shortcut taps end without warnings. Optional local grammar correction runs in the background; release waits up to 600 ms for it before using fast formatting and filler cleanup. Three six-second local audio replays produced final text 148-509 ms after simulated release. These are replay measurements, not a universal one-second guarantee or a comparison with another product. Skipping a second Whisper pass favors speed over recognition accuracy.
+The optional 0.8.1 accuracy setup uses Parakeet TDT 0.6B v2 on CPU and a local neural speech detector. It recognizes while you speak and uses the recognizer's own punctuation plus conservative formatting and filler removal. Shortcut typing, Practice, audio-file checks and recovery use the selected dictation engine. They do not wait for a separate Ollama grammar service.
 
-The optional enhanced setup adds local contextual grammar, Whisper for notes/file checks/recovery, and editable meeting voice groups with playable samples. See [setup, speaker review and verification status](SPEECH_QUALITY_UPDATE.md). It requires additional local speech/Python components and Ollama; the standard installer runs local streaming recognition and basic cleanup without those dependencies.
+Run `scripts/setup_accuracy.ps1` from normal PowerShell to prepare the Python environment, pinned local model and checked installation. A new computer needs an initial model download of about 2.5 GB; inference thereafter stays offline. Wait for Ready before using the shortcut. Basic mode retains the small Vosk model without these optional dependencies. Enhanced meeting recognition/voice grouping is a separate preference prepared by `scripts/setup_quality.ps1`; accurate dictation alone does not require those meeting dependencies.
+
+The new gate returned no words for 21 synthetic non-speech controls. Thirteen speech replays finished in 18-2,077 ms after simulated release, including any in-flight recognition; twelve finished under one second. These are limited replay measurements, not physical shortcut-to-insertion timings or a universal latency/accuracy guarantee. Human-verified accuracy is still pending. See [accuracy implementation and verification](verification/ACCURACY_0.8.1.md).
 
 ## Verification and current limits
 
-Version 0.8.0 passed 91 application, installer, speech-worker and regression checks; four live microphone/keyboard checks were excluded. The direct silence-handler check passed too. See [streaming verification and measured limits](verification/STREAMING_DICTATION.md). Additional release/installer validation is recorded in the release notes. The historical [0.7.0 implementation report](FIX_REPORT_0.7.0.md) covers the original UX review; its counts are not current-release results.
+The current verification record is in [ACCURACY_0.8.1.md](verification/ACCURACY_0.8.1.md). Unit and integration checks do not establish word error rate. `scripts/score_accuracy.py` scores only explicitly reviewed references; release publication now requires its gate to pass. Existing history/model predictions are not silently accepted as ground truth. The historical [0.7.0 implementation report](FIX_REPORT_0.7.0.md) covers the original UX review.
 
 The current model is deliberately small. Quiet speech, proper names, overlapping speakers and long meetings still need a consented accuracy corpus. Quiet-noise suppression is a signal-level gate; it can miss quiet speech or retain loud non-speech. Real browser/terminal insertion, call capture, mixed-DPI monitors and Narrator require normal desktop acceptance. No measured Wispr accuracy or latency comparison is claimed.
 

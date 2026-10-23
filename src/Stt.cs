@@ -121,17 +121,27 @@ namespace LocalDictation
     }
     sealed class LiveRecognition : IDisposable
     {
-        readonly object gate = new object(); NativeSpeechStream stream; int position; bool disposed;
+        readonly object gate = new object(); NativeSpeechStream stream; int position; volatile bool disposed;
+        readonly Config accurate;
+        public LiveRecognition(Config accurate = null) { this.accurate = accurate; }
         public string Snapshot(byte[] pcm, int peak, bool final)
         {
             lock (gate)
             {
                 if (disposed) return "";
+                if (accurate != null) return AccurateSpeech.Transcribe(accurate, pcm);
                 if (stream == null) stream = SpeechEngine.CreateStream();
                 var delta = new byte[Math.Max(0, pcm.Length - position)]; Buffer.BlockCopy(pcm, position, delta, 0, delta.Length); position = pcm.Length;
                 string partial = stream.Feed(MicRecorder.Normalize(delta, peak)); return final ? stream.Finish() : partial;
             }
         }
-        public void Dispose() { lock (gate) { disposed = true; if (stream != null) stream.Dispose(); } }
+        public void Dispose()
+        {
+            disposed = true;
+            // Cancel must not freeze the UI behind an in-flight local inference.
+            if (System.Threading.Monitor.TryEnter(gate))
+            { try { if (stream != null) stream.Dispose(); } finally { System.Threading.Monitor.Exit(gate); } }
+            else System.Threading.ThreadPool.QueueUserWorkItem(_ => { lock (gate) { if (stream != null) stream.Dispose(); } });
+        }
     }
 }

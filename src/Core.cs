@@ -7,8 +7,8 @@ using System.Web.Script.Serialization;
 
 [assembly: System.Reflection.AssemblyTitle("Notewll")]
 [assembly: System.Reflection.AssemblyProduct("Notewll")]
-[assembly: System.Reflection.AssemblyVersion("0.8.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.8.0.0")]
+[assembly: System.Reflection.AssemblyVersion("0.8.1.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.8.1.0")]
 
 namespace LocalDictation
 {
@@ -43,6 +43,7 @@ namespace LocalDictation
         public string Microphone { get; set; }
         public bool CleanupEnabled { get; set; }
         public bool QualityEnabled { get; set; }
+        public bool AccurateDictationEnabled { get; set; }
         public string QualityPython { get; set; }
         public bool AutoPaste { get; set; }
         public bool LiveWriting { get; set; }
@@ -98,6 +99,7 @@ namespace LocalDictation
                 string json = File.ReadAllText(path);
                 var serializer = new JavaScriptSerializer(); var value = serializer.Deserialize<Config>(json);
                 var legacy = serializer.Deserialize<Dictionary<string, object>>(json);
+                if (!legacy.ContainsKey("AccurateDictationEnabled")) value.AccurateDictationEnabled = value.QualityEnabled;
                 if (!legacy.ContainsKey("NotesHotkey") && legacy.ContainsKey("NotesMicrophoneHotkey")) value.NotesHotkey = Convert.ToString(legacy["NotesMicrophoneHotkey"]);
                 if (!legacy.ContainsKey("SetupGuideSeen")) value.SetupGuideSeen = true;
                 if (!legacy.ContainsKey("ShowVoiceIndicator")) value.ShowVoiceIndicator = true;
@@ -120,7 +122,7 @@ namespace LocalDictation
 
         public void Validate()
         {
-            if (QualityEnabled && !File.Exists(QualityPython)) throw new InvalidDataException("Run scripts/setup_quality.ps1 to install enhanced local speech before enabling it.");
+            if ((QualityEnabled || AccurateDictationEnabled) && !File.Exists(QualityPython)) throw new InvalidDataException("Run scripts/setup_accuracy.ps1 to prepare the local speech environment before enabling it.");
             Hotkey = Shortcut.Format(Shortcut.Parse(Hotkey));
             NotesHotkey = Shortcut.Format(Shortcut.Parse(NotesHotkey));
             if (Personalization == null) Personalization = new List<PersonalRule>();

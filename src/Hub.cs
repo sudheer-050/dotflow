@@ -117,7 +117,8 @@ namespace LocalDictation
         readonly ComboBox mic = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat };
         readonly ProgressBar meter = new ProgressBar { Maximum = 100, Style = ProgressBarStyle.Continuous };
         readonly Label micStatus = new Label(), sttStatus = new Label(), saved = new Label(), homeLatest = new Label(), homeShortcut = new Label(), homeMicrophone = new Label();
-        readonly CheckBox quality = new CheckBox { Text = "Enhanced local recognition, grammar and meeting voices", AutoSize = true };
+        readonly CheckBox quality = new CheckBox { Text = "Enhanced local notes and meeting voices", AutoSize = true };
+        readonly CheckBox accurateMode = new CheckBox { Text = "Accurate local dictation and speech detection", AutoSize = true };
         readonly CheckBox cleanup = new CheckBox { Text = "Clean up filler words and spoken corrections", AutoSize = true };
         readonly CheckBox autoPaste = new CheckBox { Text = "Insert text into the app I was using", AutoSize = true };
         readonly CheckBox liveWriting = new CheckBox { Text = "Write live, then refine when I release the shortcut", AutoSize = true };
@@ -165,7 +166,7 @@ namespace LocalDictation
             mic.Items.Add("Windows default microphone"); foreach (var name in Mics.List()) mic.Items.Add(name);
             int selected = mic.Items.IndexOf(config.Microphone); mic.SelectedIndex = selected > 0 ? selected : 0;
             liveWriting.Checked = config.LiveWriting; pasteMethod.Items.AddRange(new object[] { "Automatic (includes terminals)", "Ctrl+V", "Ctrl+Shift+V", "Shift+Insert" }); pasteMethod.SelectedIndex = Array.IndexOf(new[] { "Auto", "CtrlV", "CtrlShiftV", "ShiftInsert" }, config.PasteMethod);
-            quality.Checked = config.QualityEnabled; cleanup.Checked = config.CleanupEnabled; autoPaste.Checked = config.AutoPaste; startup.Checked = config.StartWithWindows;
+            quality.Checked = config.QualityEnabled; accurateMode.Checked = config.AccurateDictationEnabled; cleanup.Checked = config.CleanupEnabled; autoPaste.Checked = config.AutoPaste; startup.Checked = config.StartWithWindows;
             noteShortcut.Items.AddRange(new object[] { "Ctrl+Shift+N", "Ctrl+Shift+Space", "Ctrl+Alt+N", "F9", "F10", "F11", "F12" });
             if (!noteShortcut.Items.Contains(config.NotesHotkey)) noteShortcut.Items.Add(config.NotesHotkey); noteShortcut.SelectedItem = config.NotesHotkey;
             noteSource.Items.AddRange(new object[] { "My microphone", "Computer audio", "Microphone + computer" }); noteSource.SelectedIndex = Array.IndexOf(new[] { "Microphone", "Computer", "Both" }, config.NotesSource);
@@ -332,7 +333,7 @@ namespace LocalDictation
                 if (IsCapturingShortcut) throw new InvalidOperationException("Release your shortcut keys first.");
                 Result = source.Copy(); Result.Hotkey = selectedShortcut; Result.NotesHotkey = Convert.ToString(noteShortcut.SelectedItem);
                 Result.NotesSource = new[] { "Microphone", "Computer", "Both" }[noteSource.SelectedIndex]; Result.MeetingSource = new[] { "Microphone", "Computer", "Both" }[meetingSource.SelectedIndex];
-                Result.QualityEnabled = quality.Checked; Result.Microphone = SelectedMic(); Result.CleanupEnabled = cleanup.Checked; Result.AutoPaste = autoPaste.Checked; Result.LiveWriting = liveWriting.Checked;
+                Result.QualityEnabled = quality.Checked; Result.AccurateDictationEnabled = accurateMode.Checked; Result.Microphone = SelectedMic(); Result.CleanupEnabled = cleanup.Checked; Result.AutoPaste = autoPaste.Checked; Result.LiveWriting = liveWriting.Checked;
                 Result.PasteMethod = new[] { "Auto", "CtrlV", "CtrlShiftV", "ShiftInsert" }[pasteMethod.SelectedIndex]; Result.StartWithWindows = startup.Checked;
                 Result.UpdateManifestUrl = updateUrl.Text.Trim(); Result.UpdatePublisherThumbprint = updatePublisher.Text.Replace(" ", "").Trim();
                 Result.CheckUpdatesOnStart = updateOnStart.Checked; Result.WritingStyle = writingStyle.Text;
@@ -375,7 +376,7 @@ namespace LocalDictation
             transcribing = true; int gen = practiceGeneration; testMic.Enabled = transcribe.Enabled = false; sttStatus.Text = "Recognizing your sentence locally..."; var cfg = source.Copy(); cfg.Microphone = SelectedMic();
             ThreadPool.QueueUserWorkItem(_ =>
             {
-                string text = null, error = null; try { text = SpeechEngine.TranscribeEnsured(cfg, MicRecorder.ToWav(MicRecorder.Normalize(pcm, peak))); } catch (Exception ex) { error = ex.Message; } finally { Array.Clear(pcm, 0, pcm.Length); }
+                string text = null, error = null; try { text = DictationSpeech.Transcribe(cfg, pcm); } catch (Exception ex) { error = ex.Message; } finally { Array.Clear(pcm, 0, pcm.Length); }
                 Post(() => { if (gen != practiceGeneration) return; transcribing = false; testMic.Enabled = transcribe.Enabled = true; transcribe.Text = "Record a sentence";
                     if (error != null) { sttStatus.Text = error; return; } UpdateTranscript(text, ""); source.SetupSpeechVerified = !String.IsNullOrWhiteSpace(text); if (CloseToTray) try { source.Save(); } catch (Exception ex) { sttStatus.Text = "Practice succeeded, but setup status could not be saved: " + ex.Message; return; }
                     sttStatus.Text = source.SetupSpeechVerified ? "Sentence recognized. Now try your shortcut in another app, then confirm the result in Check setup." : "No words recognized. Try a clear sentence.";
@@ -387,7 +388,9 @@ namespace LocalDictation
             if (checking) return; checking = true; saved.Text = "Checking your bundled voice engine…"; testStt.Enabled = false;
             ThreadPool.QueueUserWorkItem(_ =>
             {
-                string problem = SpeechEngine.EnsureRunning(source, 150);
+                string problem = null;
+                try { if (source.AccurateDictationEnabled) AccurateSpeech.Warmup(source.Copy()); else problem = SpeechEngine.EnsureRunning(source, 30); }
+                catch (Exception ex) { problem = ex.Message; }
                 Post(() => { checking = false; testStt.Enabled = true; saved.Text = problem ?? "Ready. The offline speech engine is working."; sidebarStatus.Text = saved.Text; SetReadiness(saved.Text); });
             });
         }

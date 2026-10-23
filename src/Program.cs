@@ -64,6 +64,37 @@ namespace LocalDictation
                         Console.Write(new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(SpeechQuality.Recognize(new Config { QualityEnabled = true, QualityPython = args[1] }, SpeechEngine.PcmFromWav(System.IO.File.ReadAllBytes(args[2])), true))); SpeechQuality.Shutdown(); return 0;
                     case "--quality-refine":
                         Console.Write(SpeechQuality.Refine(new Config { QualityEnabled = true, QualityPython = args[1] }, args[2])); SpeechQuality.Shutdown(); return 0;
+                    case "--accurate-batch":
+                    case "--accurate-stream-batch":
+                        {
+                            var cfg = new Config { AccurateDictationEnabled = true, QualityPython = args[1] };
+                            var warm = Stopwatch.StartNew();
+                            try
+                            {
+                                AccurateSpeech.Warmup(cfg); warm.Stop();
+                                Console.WriteLine(new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new { Ready = AccurateSpeech.Ready, WarmupMs = warm.ElapsedMilliseconds, Backend = "Parakeet CPU + Silero speech detection" }));
+                                bool grammar = false; // Accurate shortcuts use ASR punctuation and conservative local cleanup.
+                                var grammarConfig = cfg.Copy(); grammarConfig.QualityEnabled = grammar;
+                                if (grammar) SpeechQuality.TryRefine(grammarConfig, "Hello.");
+                                foreach (string file in args.Skip(2).Where(value => value != "--grammar"))
+                                {
+                                    byte[] pcm = SpeechEngine.PcmFromWav(System.IO.File.ReadAllBytes(file));
+                                    if (args[0] == "--accurate-stream-batch")
+                                    {
+                                        var live = new LiveGrammar(rawText => SpeechQuality.TryRefine(grammarConfig, rawText));
+                                        var replay = FastDictationChecks.Replay(cfg, live, pcm, true, grammar);
+                                        Console.WriteLine(new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new { File = System.IO.Path.GetFileName(file), Replay = replay }));
+                                        continue;
+                                    }
+                                    var timer = Stopwatch.StartNew();
+                                    string raw = AccurateSpeech.Transcribe(cfg, pcm);
+                                    string text = WritingFormat.Compose(cfg, raw);
+                                    Console.WriteLine(new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new { File = System.IO.Path.GetFileName(file), InferenceMs = timer.ElapsedMilliseconds, Raw = raw, Text = text }));
+                                }
+                            }
+                            finally { SpeechQuality.Shutdown(); AccurateSpeech.Shutdown(); }
+                            return 0;
+                        }
                     case "--ux-smoke":
                         UxVerification.Run(args[1]); return 0;
                     case "--format-text":
@@ -135,6 +166,7 @@ namespace LocalDictation
                     case "--note-preferences":
                         var preferences = Config.Load(args[1]); Console.Write(preferences.NotesHotkey + "|" + preferences.NotesSource + "|" + preferences.MeetingSource + "|" + preferences.ToolbarX + "|" + preferences.ToolbarY); return 0;
                     case "--live-grammar-smoke":
+                    case "--recognition-cancel-smoke":
                     case "--streaming-dictation-benchmark": return FastDictationChecks.Run(args);
                     case "--request-exit":
                         try { using (var signal = EventWaitHandle.OpenExisting("LocalDictation.Exit")) signal.Set(); return 0; }
@@ -340,6 +372,8 @@ namespace LocalDictation
                     case "--validate-config":
                         try { var c = Config.Load(args[1]); Console.Write(c.Hotkey + "|" + c.Microphone + "|" + c.CleanupEnabled + "|" + c.AutoPaste + "|" + c.StartWithWindows); return 0; }
                         catch (Exception ex) { Console.Error.Write(ex.Message); return 2; }
+                    case "--speech-preferences":
+                        var speechPreferences = Config.Load(args[1]); Console.Write(speechPreferences.AccurateDictationEnabled + "|" + speechPreferences.QualityEnabled); return 0;
                     case "--state-sequence":
                         try { var s = new StateMachine(); foreach (var name in args.Skip(1)) s.Move((AppState)Enum.Parse(typeof(AppState), name, true)); Console.Write(s.Current); return 0; }
                         catch (Exception ex) { Console.Error.Write(ex.Message); return 3; }

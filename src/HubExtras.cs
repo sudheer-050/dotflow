@@ -51,7 +51,7 @@ namespace LocalDictation
         {
             updateUrl.TextChanged += (s, e) => MarkDirty(); updatePublisher.TextChanged += (s, e) => MarkDirty();
             updateOnStart.CheckedChanged += (s, e) => MarkDirty(); writingStyle.SelectedIndexChanged += (s, e) => { MarkDirty(); RefreshCleaned(); };
-            foreach (var box in new[] { quality, cleanup, autoPaste, liveWriting, startup, toolbarChoice, indicatorChoice, motionChoice, noiseChoice }) box.CheckedChanged += (s, e) => MarkDirty();
+            foreach (var box in new[] { quality, accurateMode, cleanup, autoPaste, liveWriting, startup, toolbarChoice, indicatorChoice, motionChoice, noiseChoice }) box.CheckedChanged += (s, e) => MarkDirty();
             foreach (var box in new[] { mic, noteShortcut, noteSource, meetingSource, pasteMethod, themeChoice }) box.SelectedIndexChanged += (s, e) => MarkDirty();
         }
         bool ConfirmUnsaved()
@@ -61,7 +61,7 @@ namespace LocalDictation
             if (result == DialogResult.Cancel) return false;
             if (result == DialogResult.Yes) { SavePreferences(); return !dirty; }
             selectedShortcut = source.Hotkey; hotkey.Text = selectedShortcut;
-            quality.Checked = source.QualityEnabled; cleanup.Checked = source.CleanupEnabled; autoPaste.Checked = source.AutoPaste; liveWriting.Checked = source.LiveWriting; startup.Checked = source.StartWithWindows;
+            quality.Checked = source.QualityEnabled; accurateMode.Checked = source.AccurateDictationEnabled; cleanup.Checked = source.CleanupEnabled; autoPaste.Checked = source.AutoPaste; liveWriting.Checked = source.LiveWriting; startup.Checked = source.StartWithWindows;
             toolbarChoice.Checked = source.ShowToolbar; indicatorChoice.Checked = source.ShowVoiceIndicator; motionChoice.Checked = source.ReducedMotion; noiseChoice.Checked = source.ReduceNoise; themeChoice.SelectedItem = source.Theme; writingStyle.SelectedItem = source.WritingStyle;
             noteShortcut.SelectedItem = source.NotesHotkey; noteSource.SelectedIndex = Array.IndexOf(new[] { "Microphone", "Computer", "Both" }, source.NotesSource); meetingSource.SelectedIndex = Array.IndexOf(new[] { "Microphone", "Computer", "Both" }, source.MeetingSource);
             mic.SelectedIndex = Math.Max(0, mic.Items.IndexOf(source.Microphone)); pasteMethod.SelectedIndex = Array.IndexOf(new[] { "Auto", "CtrlV", "CtrlShiftV", "ShiftInsert" }, source.PasteMethod);
@@ -95,10 +95,10 @@ namespace LocalDictation
             Button(recording, "Repair speech installation", 20, 394, 260, (s, e) => { var setup = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Uninstall.exe"); if (File.Exists(setup)) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = setup, UseShellExecute = true }); else MessageBox.Show(this, "Run the latest Setup executable to repair the speech files."); });
             pendingRules = source.Copy().Personalization;
             var writing = SettingsTab("Writing");
-            Setting(writing, cleanup, 22); Setting(writing, autoPaste, 66); Setting(writing, liveWriting, 110); Setting(writing, quality, 144);
-            Label(writing, "Paste method", 20, 170, 600, 26, 11, true, Ink); Setting(writing, pasteMethod, 206);
-            Label(writing, "Writing style", 20, 250, 600, 26, 11, true, Ink); writingStyle.Items.AddRange(new object[] { "Standard", "Chat", "Email", "Code" }); writingStyle.SelectedItem = source.WritingStyle; Setting(writing, writingStyle, 284); Button(writing, "Words & snippets", 20, 340, 248, (s, e) => EditRules());
-            Label(writing, "Enhanced mode needs the local speech setup and grammar service.\nCleanup removes contextual fillers; turn it off for verbatim writing.", 20, 400, 620, 70, 10, false, Muted);
+            Setting(writing, cleanup, 22); Setting(writing, autoPaste, 66); Setting(writing, liveWriting, 110); Setting(writing, accurateMode, 144); Setting(writing, quality, 182);
+            Label(writing, "Paste method", 20, 224, 600, 26, 11, true, Ink); Setting(writing, pasteMethod, 256);
+            Label(writing, "Writing style", 20, 296, 600, 26, 11, true, Ink); writingStyle.Items.AddRange(new object[] { "Standard", "Chat", "Email", "Code" }); writingStyle.SelectedItem = source.WritingStyle; Setting(writing, writingStyle, 328); Button(writing, "Words & snippets", 20, 374, 248, (s, e) => EditRules());
+            Label(writing, "Accurate mode needs the optional local setup. Wait for Ready before dictating.\nCleanup preserves words and removes fillers; turn it off for verbatim writing.", 20, 422, 620, 70, 10, false, Muted);
             var noteSettings = SettingsTab("Notes");
             Label(noteSettings, "Recording shortcut - select one", 20, 20, 620, 28, 11, true, Ink); Setting(noteSettings, noteShortcut, 58);
             Label(noteSettings, "Personal-note audio", 20, 120, 620, 28, 11, true, Ink); Setting(noteSettings, noteSource, 158);
@@ -115,7 +115,7 @@ namespace LocalDictation
             Label(storage, "Recordings, deleted notes and download cache use disk space.\nBack up notes before moving them. Conversation exports can include private annotations.\nSpeech and notes stay on this PC; no account or cloud subscription is required.", 20, 78, 620, 110, 10, false, Muted);
             Button(storage, "Storage & recently deleted", 20, 220, 284, (s, e) => { if (notes != null && !notes.Busy) { NotesStorageDialog.Show(this, notes.Store, source); notes.ReloadLibrary(); } else MessageBox.Show(this, "Finish the current recording/transcription before managing storage."); });
             var about = SettingsTab("About");
-            Label(about, "Notewll 0.8.0", 20, 20, 620, 38, 18, true, Ink);
+            Label(about, "Notewll 0.8.1", 20, 20, 620, 38, 18, true, Ink);
             Label(about, "Windows x64 | English | Vosk small-en-us 0.15\nOffline speech after one-time installation.\n\nThis release adds speech recovery, organized settings, richer notes,\nplayback, scoped exports, storage recovery, dictionary and snippets.\n\nConversation text is read-only in the app. External document protections\nare convenience restrictions, not proof that a copy was never changed.", 20, 82, 630, 220, 10, false, Muted);
             Button(about, "Open release notes", 20, 336, 220, (s, e) => ShowReleaseNotes());
             Button(about, "Check for updates", 260, 336, 220, async (s, e) => await ReleaseUpdates.Check(this, source));
@@ -146,7 +146,7 @@ namespace LocalDictation
                 {
                     byte[] wav = File.ReadAllBytes(file.FileName); sttStatus.Text = "Transcribing the selected local test clip...";
                     var config = source.Copy();
-                    string result = await System.Threading.Tasks.Task.Run(() => SpeechQuality.Available(config) ? SpeechQuality.Recognize(config, SpeechEngine.PcmFromWav(wav), false).text : SpeechEngine.Transcribe(config, wav));
+                    string result = await System.Threading.Tasks.Task.Run(() => DictationSpeech.Transcribe(config, SpeechEngine.PcmFromWav(wav)));
                     if (!IsDisposed) { UpdateTranscript(result, result); sttStatus.Text = "Local test complete. Compare the recognized words against your reference transcript."; }
                 }
                 catch (Exception ex) { if (!IsDisposed) sttStatus.Text = ex.Message; }
@@ -154,7 +154,7 @@ namespace LocalDictation
         }
         internal void SelectSettingsCategory(string name) { foreach (TabPage tab in settingsTabs.TabPages) if (tab.Text == name) { settingsTabs.SelectedTab = tab; break; } }
         static void OpenPermissionSettings() { try { System.Diagnostics.Process.Start("ms-settings:privacy-microphone"); } catch (Exception ex) { MessageBox.Show(ex.Message, "Open microphone settings"); } }
-        void ShowReleaseNotes() { MessageBox.Show(this, "0.8.0\n\nContinuous local recognition while you speak.\nBackground grammar correction with enhanced speech enabled.\nFast release using the live transcript and available corrections.\nSilence and short shortcut taps finish without warnings.\nSlow grammar falls back to local cleanup.\nNotes, recordings and shortcut preferences are preserved.\n\nThree six-second audio replays finished in 148-509 ms after simulated release; desktop timing and accuracy still need acceptance testing.", "Release notes"); }
+        void ShowReleaseNotes() { MessageBox.Show(this, "0.8.1\n\nOptional Parakeet recognition with local speech detection.\nWait for Ready before using accurate dictation.\nShortcut typing no longer waits for a separate grammar service.\nPractice, audio-file checks and recovery use the chosen dictation engine.\nConservative cleanup preserves recognized words and critical facts.\nCancel no longer waits for an in-flight inference.\nNotes, recordings and shortcut preferences are preserved.\n\n21 synthetic non-speech controls returned no text. Twelve of thirteen speech replays finished within one second; one longer replay took about two seconds. Human-reference accuracy and physical desktop typing still need acceptance testing.", "Release notes"); }
         public void ShowFirstRunGuide() { FirstRunSetup(); source.SetupGuideSeen = true; source.Save(); }
         void FirstRunSetup()
         {

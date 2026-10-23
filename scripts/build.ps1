@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$version = '0.8.0'
+$version = '0.8.1'
 $build = Join-Path $root 'build'
 $dist = Join-Path $root 'dist'
 New-Item -ItemType Directory -Force $build, $dist | Out-Null
@@ -14,3 +14,5 @@ Write-Host "Built $dist\LocalDictation-$version.exe"
 
 New-Item -ItemType Directory -Force "$build\engine" | Out-Null
 Copy-Item "$root\engine\quality_worker.py" "$build\engine\quality_worker.py" -Force
+Copy-Item "$root\engine\accurate_worker.py" "$build\engine\accurate_worker.py" -Force
+Copy-Item "$root\assets\silero_vad.onnx" "$build\engine\silero_vad.onnx" -Force

@@ -95,3 +95,21 @@ def test_worker_rejects_grammar_that_invents_extra_clauses(monkeypatch):
     monkeypatch.setattr(module, 'ensure_grammar', lambda: None)
     monkeypatch.setattr(module.urllib.request, 'build_opener', lambda *args: Opener())
     assert module.refine('i has a meeting tomorrow') == 'i has a meeting tomorrow'
+
+
+@pytest.mark.parametrize('raw,edited,expected', [
+    ('um I will pay 15 at 3', 'I will pay 15 at 3.', 'I will pay 15 at 3.'),
+    ('Do not pay 15', 'Do pay 15.', 'Do not pay 15'),
+    ('Send it at 3', 'Send it by 3.', 'Send it at 3'),
+    ('Can I name it', 'Can you name it?', 'Can I name it'),
+    ('The pool how are you', 'The pool is how are you?', 'The pool how are you'),
+    ('Pay 15.50 to Alex', 'Pay 1550 to Alex.', 'Pay 15.50 to Alex'),
+    ('Send it to Sudheer', 'Send it to Alex.', 'Send it to Sudheer'),
+    ('hello there', 'Hello there!', 'Hello there!'),
+    ("I don't agree", 'I do agree.', "I don't agree"),
+])
+def test_grammar_preserves_recognized_words_and_critical_facts(raw, edited, expected):
+    spec = importlib.util.spec_from_file_location('quality_worker', ROOT / 'engine/quality_worker.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.safe_refinement(raw, edited) == expected

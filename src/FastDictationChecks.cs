@@ -10,6 +10,25 @@ namespace LocalDictation
     {
         public static int Run(string[] args)
         {
+            if (args[0] == "--recognition-cancel-smoke")
+            {
+                using (var entered = new ManualResetEvent(false))
+                using (var release = new ManualResetEvent(false))
+                using (var recognition = new LiveRecognition())
+                {
+                    object gate = typeof(LiveRecognition).GetField("gate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(recognition);
+                    var inference = System.Threading.Tasks.Task.Run(() => { lock (gate) { entered.Set(); release.WaitOne(); } });
+                    try
+                    {
+                        if (!entered.WaitOne(2000)) throw new Exception("Controlled inference did not start.");
+                        var cancel = System.Threading.Tasks.Task.Run(() => recognition.Dispose());
+                        if (!cancel.Wait(500)) throw new Exception("Cancel blocked behind recognition.");
+                    }
+                    finally { release.Set(); inference.Wait(2000); }
+                    if (recognition.Snapshot(new byte[0], 0, true) != "") throw new Exception("Canceled recognition accepted another request.");
+                }
+                Console.Write("cancel-ok|nonblocking|late-work-ignored"); return 0;
+            }
             if (args[0] == "--live-grammar-smoke")
             {
                 using (var started = new ManualResetEvent(false))
@@ -50,35 +69,44 @@ namespace LocalDictation
             }
             SpeechEngine.DiagnosticRoot(args[1]);
             var config = Config.Load();
-            bool useGrammar = Array.IndexOf(args, "--grammar") >= 0;
-            if (!useGrammar) config.QualityEnabled = false;
-            string problem = SpeechEngine.EnsureRunning(config, 10);
-            if (problem != null) throw new Exception(problem);
-            if (useGrammar) SpeechQuality.TryRefine(config, "Hello.");
-            var live = new LiveGrammar(raw => SpeechQuality.TryRefine(config, raw));
+            bool accurate = config.AccurateDictationEnabled && Array.IndexOf(args, "--basic") < 0;
+            bool useGrammar = !accurate && Array.IndexOf(args, "--grammar") >= 0;
+            if (accurate) AccurateSpeech.Warmup(config);
+            else { string problem = SpeechEngine.EnsureRunning(config, 10); if (problem != null) throw new Exception(problem); }
+            var grammarConfig = config.Copy(); if (!useGrammar) grammarConfig.QualityEnabled = false;
+            if (useGrammar) SpeechQuality.TryRefine(grammarConfig, "Hello.");
+            var live = new LiveGrammar(raw => SpeechQuality.TryRefine(grammarConfig, raw));
             byte[] pcm = SpeechEngine.PcmFromWav(File.ReadAllBytes(args[2]));
+            try { Console.Write(new JavaScriptSerializer().Serialize(Replay(config, live, pcm, accurate, useGrammar))); }
+            finally { SpeechQuality.Shutdown(); AccurateSpeech.Shutdown(); SpeechEngine.Shutdown(); }
+            return 0;
+        }
+        internal static object Replay(Config config, LiveGrammar live, byte[] pcm, bool accurate, bool useGrammar)
+        {
             var elapsed = Stopwatch.StartNew();
-            using (var recognition = new LiveRecognition())
+            using (var recognition = new LiveRecognition(accurate ? config : null))
             {
-                int offset = 0;
-                while (offset + 8000 < pcm.Length)
+                System.Threading.Tasks.Task pending = null;
+                int step = accurate ? 16000 : 8000;
+                for (int offset = step; offset < pcm.Length; offset += step)
                 {
-                    offset += 8000;
                     int pause = (int)(offset / 32L - elapsed.ElapsedMilliseconds);
                     if (pause > 0) Thread.Sleep(pause);
+                    if (pending != null && !pending.IsCompleted) continue;
+                    if (pending != null) pending.GetAwaiter().GetResult();
                     var snapshot = new byte[offset]; Buffer.BlockCopy(pcm, 0, snapshot, 0, offset);
-                    live.Offer(recognition.Snapshot(snapshot, Peak(snapshot), false).Trim());
+                    pending = System.Threading.Tasks.Task.Run(() => live.Offer(recognition.Snapshot(snapshot, Peak(snapshot), false).Trim()));
                 }
                 int tailPause = (int)(pcm.Length / 32L - elapsed.ElapsedMilliseconds);
                 if (tailPause > 0) Thread.Sleep(tailPause);
                 var release = Stopwatch.StartNew();
+                if (pending != null) { if (!pending.Wait(12000)) throw new Exception("Live recognition did not finish within its deadline."); pending.GetAwaiter().GetResult(); }
                 string raw = recognition.Snapshot(pcm, Peak(pcm), true).Trim();
                 long recognitionMs = release.ElapsedMilliseconds;
-                string refined = live.Resolve(raw, 600);
+                string refined = live.Resolve(raw, accurate ? 0 : 600);
                 string text = WritingFormat.Compose(config, refined);
-                Console.Write(new JavaScriptSerializer().Serialize(new { AudioMs = pcm.Length / 32, ReleaseToTextMs = release.ElapsedMilliseconds, FinalRecognitionMs = recognitionMs, Raw = raw, Text = text, ModelCorrectionUsed = raw != refined, GrammarEnabled = useGrammar, Scope = "Real-time replay of a WAV, not a physical microphone/shortcut timing." }));
+                return new { AudioMs = pcm.Length / 32, ReleaseToTextMs = release.ElapsedMilliseconds, FinalRecognitionMs = recognitionMs, Raw = raw, Text = text, ModelCorrectionUsed = raw != refined, GrammarEnabled = useGrammar, AccurateRecognition = accurate, Scope = "Real-time WAV replay including outstanding inference on release; not physical microphone/shortcut or target-app insertion timing." };
             }
-            SpeechQuality.Shutdown(); SpeechEngine.Shutdown(); return 0;
         }
         static int Peak(byte[] pcm) { int peak = 0; for (int i = 0; i + 1 < pcm.Length; i += 2) peak = Math.Max(peak, Math.Abs((int)BitConverter.ToInt16(pcm, i))); return peak; }
     }

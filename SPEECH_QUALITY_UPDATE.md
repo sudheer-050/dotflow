@@ -1,3 +1,11 @@
+# Current local accuracy candidate: 0.8.1
+
+For accurate shortcut dictation run `scripts/setup_accuracy.ps1` in a normal PowerShell window. On this computer the dependencies and pinned model cache are already present. `Update Notewll accuracy.cmd` applies the verified local build using that environment. Wait for Ready before recording.
+
+Accurate dictation uses local CPU Parakeet and Silero speech detection, with deterministic formatting. It does not wait for Ollama. The Accurate local dictation preference is separate from Enhanced local notes and meeting voices. Setup may download model files; runtime recognition stays local. No accuracy percentage is established yet. See verification/ACCURACY_0.8.1.md.
+
+The following describes the earlier enhanced notes implementation; its shortcut/background grammar description is superseded by the section above.
+
 # Enhanced local speech preview
 
 This update adds Whisper small.en recognition for notes, audio-file checks and explicit recovery, local Ollama grammar editing, and Resemblyzer voice profiles for new meeting recordings. Shortcut dictation now uses continuous Vosk recognition and background grammar correction to reduce the delay on release. Existing recordings and their text are preserved. Original meeting audio is now saved without applying the quiet-noise gate to the stored track.

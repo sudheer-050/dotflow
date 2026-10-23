@@ -1,11 +1,16 @@
-param([string]$Repository = 'sudheer-050/notewll', [switch]$PrepareOnly)
+param([string]$Repository = 'sudheer-050/notewll', [switch]$PrepareOnly, [string]$AccuracyReferences = '', [string]$AccuracyHypotheses = '')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$version = '0.8.0'
+$version = '0.8.1'
 $stage = Join-Path $projectRoot "release\notewll-$version"
 $installer = Join-Path $projectRoot "dist\Notewll-Setup-$version.exe"
 $releaseNotes = Join-Path $projectRoot "dist\RELEASE_NOTES-$version.md"
 if ($Repository -notmatch '^[A-Za-z0-9-]+/[A-Za-z0-9_.-]+$') { throw 'Use owner/repository for the GitHub repository.' }
+if (-not $PrepareOnly) {
+    if (-not $AccuracyReferences -or -not $AccuracyHypotheses) { throw 'Verified accuracy references and hypotheses are required before publication. Use -PrepareOnly to build a local review package.' }
+    & python "$PSScriptRoot\score_accuracy.py" $AccuracyReferences $AccuracyHypotheses
+    if ($LASTEXITCODE -ne 0) { throw 'The reviewed accuracy gate did not pass. No source or release was published.' }
+}
 if (-not (Test-Path -LiteralPath $installer)) { throw 'Build and verify the installer first.' }
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 # Explicit source allowlist excludes recordings, local configuration, caches and generated test data.
@@ -19,9 +24,9 @@ foreach ($folder in @('src','assets','installer','scripts','engine','verificatio
         Copy-Item -LiteralPath $_.FullName -Destination $destination -Force
     }
 }
-foreach ($file in @('.gitignore','README.md','USER_GUIDE.md','BACKLOG_STATUS.md','FIX_REPORT_0.7.0.md','UX_USER_REVIEW_0.6.1.md','RELEASE_NOTES.md','THIRD_PARTY_NOTICES.md','requirements-dev.txt','SPEECH_QUALITY_UPDATE.md','Install quiet dictation.cmd','setup.ps1','Update Local Dictation.vbs')) { Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination (Join-Path $stage $file) -Force }
+foreach ($file in @('.gitignore','README.md','USER_GUIDE.md','BACKLOG_STATUS.md','FIX_REPORT_0.7.0.md','UX_USER_REVIEW_0.6.1.md','RELEASE_NOTES.md','THIRD_PARTY_NOTICES.md','requirements-dev.txt','SPEECH_QUALITY_UPDATE.md','Install quiet dictation.cmd','Update Notewll accuracy.cmd','setup.ps1','Update Local Dictation.vbs')) { Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination (Join-Path $stage $file) -Force }
 $tests = Join-Path $stage 'tests'; New-Item -ItemType Directory -Path $tests -Force | Out-Null
-foreach ($file in @('test_app.py','test_setup.py','test_note_exports.py','test_release.py','test_completion.py','test_live_grammar.py','test_speech_quality.py','test_ux_fixes.py')) { Copy-Item -LiteralPath (Join-Path $projectRoot "tests\$file") -Destination (Join-Path $tests $file) -Force }
+foreach ($file in @('test_app.py','test_setup.py','test_note_exports.py','test_release.py','test_completion.py','test_live_grammar.py','test_speech_quality.py','test_ux_fixes.py','test_accurate_speech.py','test_accuracy_scoring.py')) { Copy-Item -LiteralPath (Join-Path $projectRoot "tests\$file") -Destination (Join-Path $tests $file) -Force }
 & "$PSScriptRoot\prepare_release.ps1" -Repository $Repository
 if ($PrepareOnly) { Write-Output "Source snapshot prepared: $stage"; return }
 function Invoke-Native([scriptblock]$Command) {
