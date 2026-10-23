@@ -37,6 +37,33 @@ namespace LocalDictation
             {
                 switch (args[0])
                 {
+                    case "--personalization-smoke":
+                        {
+                            var config = new Config();
+                            config.Personalization.Add(new PersonalRule { Kind = "Word", Trigger = "sue dear", Replacement = "Sudheer" });
+                            config.Personalization.Add(new PersonalRule { Kind = "Snippet", Trigger = "my intro", Replacement = "Hello everyone, welcome to our meeting." });
+                            var json = new System.Web.Script.Serialization.JavaScriptSerializer(); config = json.Deserialize<Config>(json.Serialize(config));
+                            if (String.Join(",", PersonalRule.Vocabulary(config)) != "Sudheer") throw new Exception("Speech vocabulary includes snippets or lost a saved spelling.");
+                            if (PersonalRule.Apply(config, "sue dear said my intro", true) != "Sudheer said my intro") throw new Exception("Pre-grammar corrections expanded a snippet.");
+                            if (PersonalRule.Apply(config, "sue dearest", true) != "sue dearest") throw new Exception("Corrections ignored word boundaries.");
+                            Console.Write("personalization-ok"); return 0;
+                        }
+                    case "--voice-smoke":
+                        {
+                            var store = new NoteStore(args[1]); var note = store.Create("Voice check", "Both", "");
+                            var a = new double[256]; a[0] = 1; var b = new double[256]; b[1] = 1;
+                            var first = new NoteSegment { Source = "Computer", RawText = "We should review the report.", Complete = true, VoiceEmbedding = a }; MeetingVoices.Assign(note, first); note.Segments.Add(first);
+                            var other = new NoteSegment { Source = "Computer", RawText = "I agree with that decision.", Complete = true, VoiceEmbedding = b }; MeetingVoices.Assign(note, other); note.Segments.Add(other);
+                            var intro = new NoteSegment { Source = "Computer", RawText = "Hi, I am Sudheer.", Complete = true, VoiceEmbedding = a }; MeetingVoices.Assign(note, intro); note.Segments.Add(intro);
+                            if (first.VoiceId != intro.VoiceId || other.VoiceId == first.VoiceId || first.SpeakerLabel != "Sudheer" || !String.IsNullOrEmpty(other.SpeakerLabel)) throw new Exception("Voice clustering or name linking failed.");
+                            store.Save(note); var saved = store.List()[0]; if (saved.Segments[0].SpeakerLabel != "Sudheer" || !NoteStore.Transcript(saved).StartsWith("Speakers -")) throw new Exception("Voice review persistence failed.");
+                            if (NoteStore.Transcript(NoteExport.Scope(saved, 0, false)).Contains("Speakers -")) throw new Exception("Export leaked the speaker index.");
+                            Console.Write("voices-ok"); return 0;
+                        }
+                    case "--quality-transcribe":
+                        Console.Write(new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(SpeechQuality.Recognize(new Config { QualityEnabled = true, QualityPython = args[1] }, SpeechEngine.PcmFromWav(System.IO.File.ReadAllBytes(args[2])), true))); SpeechQuality.Shutdown(); return 0;
+                    case "--quality-refine":
+                        Console.Write(SpeechQuality.Refine(new Config { QualityEnabled = true, QualityPython = args[1] }, args[2])); SpeechQuality.Shutdown(); return 0;
                     case "--ux-smoke":
                         UxVerification.Run(args[1]); return 0;
                     case "--format-text":
@@ -107,6 +134,8 @@ namespace LocalDictation
                         }
                     case "--note-preferences":
                         var preferences = Config.Load(args[1]); Console.Write(preferences.NotesHotkey + "|" + preferences.NotesSource + "|" + preferences.MeetingSource + "|" + preferences.ToolbarX + "|" + preferences.ToolbarY); return 0;
+                    case "--live-grammar-smoke":
+                    case "--streaming-dictation-benchmark": return FastDictationChecks.Run(args);
                     case "--request-exit":
                         try { using (var signal = EventWaitHandle.OpenExisting("LocalDictation.Exit")) signal.Set(); return 0; }
                         catch (WaitHandleCannotBeOpenedException) { Console.Error.Write("Close the existing app from its tray menu first."); return 1; }

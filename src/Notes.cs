@@ -19,6 +19,8 @@ namespace LocalDictation
         public string RawText { get; set; }
         public string Introduction { get; set; }
         public string SpeakerLabel { get; set; }
+        public string VoiceId { get; set; }
+        public double[] VoiceEmbedding { get; set; }
         public string Error { get; set; }
         public bool Complete { get; set; }
     }
@@ -154,6 +156,7 @@ namespace LocalDictation
             Guid id; DateTime created;
             if (note == null || !Guid.TryParseExact(note.Id, "N", out id) || !DateTime.TryParse(note.CreatedUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out created) || note.Participants == null || note.Segments == null || note.Segments.Count > 100000 || note.Mode != "Microphone" && note.Mode != "Computer" && note.Mode != "Both" || Double.IsNaN(note.DurationSeconds) || Double.IsInfinity(note.DurationSeconds) || note.DurationSeconds < 0) throw new InvalidDataException("Note metadata is invalid.");
             if (note.Segments.Any(s => s == null || s.StartFrame < 0 || s.Frames < 0 || s.StartFrame > Int64.MaxValue - s.Frames || s.TranscriptStartFrame < 0 || s.Source != "Microphone" && s.Source != "Computer" || s.SpeakerLabel != null && (s.SpeakerLabel.Length > 80 || s.SpeakerLabel.Any(Char.IsControl)))) throw new InvalidDataException("Note audio sections are invalid.");
+            if (note.Segments.Any(s => s.VoiceId != null && s.VoiceId.Length > 80 || s.VoiceEmbedding != null && (s.VoiceEmbedding.Length != 256 || s.VoiceEmbedding.Any(v => Double.IsNaN(v) || Double.IsInfinity(v))))) throw new InvalidDataException("Note voice profiles are invalid.");
         }
         public int CleanupDeleted(int days)
         {
@@ -198,7 +201,7 @@ namespace LocalDictation
         {
             lock (note)
             {
-                return String.Join(Environment.NewLine + Environment.NewLine, note.Segments.Where(s => s.Complete && String.IsNullOrEmpty(s.Error) && !String.IsNullOrWhiteSpace(s.RawText ?? s.Text)).OrderBy(s => s.StartFrame).ThenBy(s => s.Source).Select(s =>
+                return MeetingVoices.ReviewIndex(note) + String.Join(Environment.NewLine + Environment.NewLine, note.Segments.Where(s => s.Complete && String.IsNullOrEmpty(s.Error) && !String.IsNullOrWhiteSpace(s.RawText ?? s.Text)).OrderBy(s => s.StartFrame).ThenBy(s => s.Source).Select(s =>
                 {
                     string name = Speaker(note, s);
                     if (!String.IsNullOrEmpty(s.Introduction)) name += " (introduction: " + s.Introduction + ")";
@@ -209,6 +212,7 @@ namespace LocalDictation
         }
         public static string Speaker(NoteDocument note, NoteSegment segment)
         {
+            if (!String.IsNullOrWhiteSpace(segment.VoiceId) && String.IsNullOrWhiteSpace(segment.SpeakerLabel)) return segment.VoiceId;
             return !String.IsNullOrWhiteSpace(segment.SpeakerLabel) ? segment.SpeakerLabel + " [" + segment.Source + "]" : segment.Source == "Microphone" && !String.IsNullOrWhiteSpace(note.UserName) ? note.UserName : segment.Source == "Computer" ? "Computer audio" : "Microphone";
         }
         public static string Markdown(NoteDocument note)

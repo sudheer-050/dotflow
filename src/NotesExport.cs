@@ -19,7 +19,7 @@ namespace LocalDictation
             NoteDocument copy; lock (note) { var json = new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = Int32.MaxValue }; copy = json.Deserialize<NoteDocument>(json.Serialize(note)); }
             if (scope == 0) { copy.WrittenNotes = ""; copy.Summary = ""; }
             if (scope == 1) { copy.Segments.Clear(); copy.Summary = ""; }
-            if (!names) { copy.UserName = ""; copy.Participants.Clear(); foreach (var segment in copy.Segments) { segment.Introduction = ""; segment.SpeakerLabel = ""; } }
+            if (!names) { copy.UserName = ""; copy.Participants.Clear(); foreach (var segment in copy.Segments) { segment.Introduction = ""; segment.SpeakerLabel = ""; segment.VoiceId = null; segment.VoiceEmbedding = null; } }
             if (!names && !String.IsNullOrWhiteSpace(copy.Summary)) copy.Summary = NotesSummary.Generate(copy);
             return copy;
         }

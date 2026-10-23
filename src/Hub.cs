@@ -117,6 +117,7 @@ namespace LocalDictation
         readonly ComboBox mic = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat };
         readonly ProgressBar meter = new ProgressBar { Maximum = 100, Style = ProgressBarStyle.Continuous };
         readonly Label micStatus = new Label(), sttStatus = new Label(), saved = new Label(), homeLatest = new Label(), homeShortcut = new Label(), homeMicrophone = new Label();
+        readonly CheckBox quality = new CheckBox { Text = "Enhanced local recognition, grammar and meeting voices", AutoSize = true };
         readonly CheckBox cleanup = new CheckBox { Text = "Clean up filler words and spoken corrections", AutoSize = true };
         readonly CheckBox autoPaste = new CheckBox { Text = "Insert text into the app I was using", AutoSize = true };
         readonly CheckBox liveWriting = new CheckBox { Text = "Write live, then refine when I release the shortcut", AutoSize = true };
@@ -164,7 +165,7 @@ namespace LocalDictation
             mic.Items.Add("Windows default microphone"); foreach (var name in Mics.List()) mic.Items.Add(name);
             int selected = mic.Items.IndexOf(config.Microphone); mic.SelectedIndex = selected > 0 ? selected : 0;
             liveWriting.Checked = config.LiveWriting; pasteMethod.Items.AddRange(new object[] { "Automatic (includes terminals)", "Ctrl+V", "Ctrl+Shift+V", "Shift+Insert" }); pasteMethod.SelectedIndex = Array.IndexOf(new[] { "Auto", "CtrlV", "CtrlShiftV", "ShiftInsert" }, config.PasteMethod);
-            cleanup.Checked = config.CleanupEnabled; autoPaste.Checked = config.AutoPaste; startup.Checked = config.StartWithWindows;
+            quality.Checked = config.QualityEnabled; cleanup.Checked = config.CleanupEnabled; autoPaste.Checked = config.AutoPaste; startup.Checked = config.StartWithWindows;
             noteShortcut.Items.AddRange(new object[] { "Ctrl+Shift+N", "Ctrl+Shift+Space", "Ctrl+Alt+N", "F9", "F10", "F11", "F12" });
             if (!noteShortcut.Items.Contains(config.NotesHotkey)) noteShortcut.Items.Add(config.NotesHotkey); noteShortcut.SelectedItem = config.NotesHotkey;
             noteSource.Items.AddRange(new object[] { "My microphone", "Computer audio", "Microphone + computer" }); noteSource.SelectedIndex = Array.IndexOf(new[] { "Microphone", "Computer", "Both" }, config.NotesSource);
@@ -318,6 +319,7 @@ namespace LocalDictation
         public void UpdateTranscript(string text, string result)
         {
             raw.Text = text ?? ""; RefreshCleaned();
+            if (!String.IsNullOrEmpty(result)) { cleaned.Text = result; copy.Enabled = cleaned.Text.Length > 0; }
             homeLatest.Parent.Visible = true;
             homeLatest.Text = String.IsNullOrWhiteSpace(cleaned.Text) ? "Recent notes open with a double-click. Dictation audio is not stored." : cleaned.Text;
         }
@@ -330,7 +332,7 @@ namespace LocalDictation
                 if (IsCapturingShortcut) throw new InvalidOperationException("Release your shortcut keys first.");
                 Result = source.Copy(); Result.Hotkey = selectedShortcut; Result.NotesHotkey = Convert.ToString(noteShortcut.SelectedItem);
                 Result.NotesSource = new[] { "Microphone", "Computer", "Both" }[noteSource.SelectedIndex]; Result.MeetingSource = new[] { "Microphone", "Computer", "Both" }[meetingSource.SelectedIndex];
-                Result.Microphone = SelectedMic(); Result.CleanupEnabled = cleanup.Checked; Result.AutoPaste = autoPaste.Checked; Result.LiveWriting = liveWriting.Checked;
+                Result.QualityEnabled = quality.Checked; Result.Microphone = SelectedMic(); Result.CleanupEnabled = cleanup.Checked; Result.AutoPaste = autoPaste.Checked; Result.LiveWriting = liveWriting.Checked;
                 Result.PasteMethod = new[] { "Auto", "CtrlV", "CtrlShiftV", "ShiftInsert" }[pasteMethod.SelectedIndex]; Result.StartWithWindows = startup.Checked;
                 Result.UpdateManifestUrl = updateUrl.Text.Trim(); Result.UpdatePublisherThumbprint = updatePublisher.Text.Replace(" ", "").Trim();
                 Result.CheckUpdatesOnStart = updateOnStart.Checked; Result.WritingStyle = writingStyle.Text;

@@ -12,7 +12,7 @@ Private voice typing, personal notes and meeting transcripts for Windows. Hold y
 
 | Platform | Speech | Runtime | Current version |
 |---|---|---|---|
-| Windows 10/11 x64 | English, local Vosk | Native C# / .NET Framework 4.8 | 0.7.0 preview |
+| Windows 10/11 x64 | English, local Vosk | Native C# / .NET Framework 4.8 | 0.8.0 preview |
 
 ## Why Notewll?
 
@@ -54,14 +54,14 @@ A slim edge toolbar reveals icons on hover, with names on each icon. Drag it to 
 
 ## Get started
 
-1. **Get the source** from this repository, or check [GitHub Releases](https://github.com/sudheer-050/notewll/releases) for available installer assets. The unsigned 0.7.0 Windows preview installer is available in Releases.
+1. **Get the source** from this repository, or check [GitHub Releases](https://github.com/sudheer-050/notewll/releases) for available installer assets. The unsigned 0.8.0 Windows preview installer is available in Releases.
 2. **Build the installer** on Windows if you are using the source:
 
    ```powershell
    .\scripts\build_setup.ps1
    ```
 
-3. Run `dist/Notewll-Setup-0.7.0.exe`. It is a small bootstrapper, not the entire installed package. First installation needs internet for the pinned native runtime and approximately 40 MB English speech model; setup verifies hashes and tests model loading.
+3. Run `dist/Notewll-Setup-0.8.0.exe`. It is a small bootstrapper, not the entire installed package. First installation needs internet for the pinned native runtime and approximately 40 MB English speech model; setup verifies hashes and tests model loading.
 4. Open Notewll, complete the microphone and Practice checks, then confirm that dictation appears in another app. Speech can run offline afterwards.
 
 **Requirements:** Windows 10/11 x64, .NET Framework 4.8, microphone permission for microphone capture, and an output device for system audio. No macOS, Android or iOS build is supplied. The preview installer is unsigned; there is no configured signed automatic-update feed. Review the source and release hashes before choosing to install it.
@@ -99,9 +99,15 @@ flowchart LR
 - Recording computer output captures all apps using the selected output device. Choose the device used by your call and use headphones to reduce duplicated audio. Record only with the appropriate participants' consent.
 - Recently deleted recovery, explicit permanent deletion, opt-in retention and ZIP backup/restore help manage saved records. Backups contain active notes, not preferences, deleted records or speech components.
 
+## Enhanced speech preview
+
+Version 0.8.0 recognizes shortcut dictation while you speak, then finishes the live transcript on release. Silence and quick shortcut taps end without warnings. Optional local grammar correction runs in the background; release waits up to 600 ms for it before using fast formatting and filler cleanup. Three six-second local audio replays produced final text 148-509 ms after simulated release. These are replay measurements, not a universal one-second guarantee or a comparison with another product. Skipping a second Whisper pass favors speed over recognition accuracy.
+
+The optional enhanced setup adds local contextual grammar, Whisper for notes/file checks/recovery, and editable meeting voice groups with playable samples. See [setup, speaker review and verification status](SPEECH_QUALITY_UPDATE.md). It requires additional local speech/Python components and Ollama; the standard installer runs local streaming recognition and basic cleanup without those dependencies.
+
 ## Verification and current limits
 
-**84 automated checks passed; four live checks were excluded** in the 0.7.0 verification run. Coverage includes isolated UX flows, Cancel behavior, original-word preservation, export scope, PDF structure, backup/import safety, setup hashes and native-engine lifetime. See the [full implementation report](FIX_REPORT_0.7.0.md) for the disposition of all 38 review findings.
+Version 0.8.0 passed 91 application, installer, speech-worker and regression checks; four live microphone/keyboard checks were excluded. The direct silence-handler check passed too. See [streaming verification and measured limits](verification/STREAMING_DICTATION.md). Additional release/installer validation is recorded in the release notes. The historical [0.7.0 implementation report](FIX_REPORT_0.7.0.md) covers the original UX review; its counts are not current-release results.
 
 The current model is deliberately small. Quiet speech, proper names, overlapping speakers and long meetings still need a consented accuracy corpus. Quiet-noise suppression is a signal-level gate; it can miss quiet speech or retain loud non-speech. Real browser/terminal insertion, call capture, mixed-DPI monitors and Narrator require normal desktop acceptance. No measured Wispr accuracy or latency comparison is claimed.
 

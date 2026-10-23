@@ -30,7 +30,7 @@ namespace LocalDictation
         public Action Changed;
         public NotesSession(NoteStore store, Config config, Func<byte[], string> transcribe = null)
         {
-            this.store = store; this.config = config; nativeRecognition = transcribe == null;
+            this.store = store; this.config = config; nativeRecognition = transcribe == null && !SpeechQuality.Available(config);
             this.transcribe = transcribe ?? (wav => SpeechEngine.TranscribeEnsured(config, wav));
         }
         void Notify() { var callback = Changed; if (!disposed && callback != null) callback(); }
@@ -103,7 +103,7 @@ namespace LocalDictation
                         string current = source;
                         captures[source].Drain((frame, pcm) =>
                         {
-                            if (!paused) tracks[current].WriteAt(frame + resumeFrame, config.ReduceNoise ? QuietAudio.Filter(pcm) : pcm);
+                            if (!paused) tracks[current].WriteAt(frame + resumeFrame, pcm);
                             int peak = 0; double squares = 0; for (int i = 0; i + 1 < pcm.Length; i += 2) { int value = BitConverter.ToInt16(pcm, i); peak = Math.Max(peak, Math.Abs(value)); squares += (double)value * value; }
                             int rms = (int)Math.Sqrt(squares / Math.Max(1, pcm.Length / 2));
                             if (current == "Microphone") { MicrophoneLevel = peak; MicrophoneSound = rms; } else { ComputerLevel = peak; ComputerSound = rms; }
@@ -133,7 +133,7 @@ namespace LocalDictation
                 capturing = false;
                 foreach (var source in captures.Keys)
                 {
-                    try { captures[source].Drain((frame, pcm) => { if (tracks.ContainsKey(source) && !paused) tracks[source].WriteAt(frame + resumeFrame, config.ReduceNoise ? QuietAudio.Filter(pcm) : pcm); }); } catch { }
+                    try { captures[source].Drain((frame, pcm) => { if (tracks.ContainsKey(source) && !paused) tracks[source].WriteAt(frame + resumeFrame, pcm); }); } catch { }
                     captures[source].Dispose();
                 }
                 foreach (var source in tracks.Keys)
@@ -178,7 +178,22 @@ namespace LocalDictation
                     try
                     {
                         byte[] pcm = WaveTrack.ReadPcm(store.AudioPath(Document, segment.Source), segment.StartFrame, segment.Frames);
-                        if (config.ReduceNoise) pcm = QuietAudio.Filter(pcm);
+                        if (config.ReduceNoise && !SpeechQuality.Available(config)) pcm = QuietAudio.Filter(pcm);
+                        if (SpeechQuality.Available(config))
+                        {
+                            var result = SpeechQuality.Recognize(config, pcm, true);
+                            lock (Document)
+                            {
+                                foreach (var voice in result.turns)
+                                {
+                                    var turn = new NoteSegment { Source = segment.Source, StartFrame = segment.StartFrame + (long)(voice.start * 16000), Frames = Math.Max(0, (int)((voice.end - voice.start) * 16000)), RawText = voice.text, Text = voice.text, Complete = true, VoiceEmbedding = voice.embedding };
+                                    MeetingVoices.Assign(Document, turn); Document.Segments.Add(turn);
+                                }
+                                segment.Complete = true; segment.Error = null; segment.RawText = segment.Text = "";
+                                NoteMetadata.UpdateTitle(Document); store.Save(Document);
+                            }
+                            Notify(); continue;
+                        }
                         string text;
                         if (nativeRecognition)
                         {

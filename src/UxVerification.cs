@@ -35,7 +35,9 @@ namespace LocalDictation
             Application.EnableVisualStyles();
             using (var hub = new SettingsForm(config, "", "", store))
             {
-                hub.Show(); hub.ShowPage("Notes"); hub.Notes.SelectNote(note.Id); Application.DoEvents();
+                hub.Show(); hub.UpdateTranscript("sue dear has a meeting", "Sudheer has a meeting.");
+                if (((TextBox)Field(hub, "cleaned")).Text != "Sudheer has a meeting.") throw new Exception("Preview discarded the corrected final transcript.");
+                hub.ShowPage("Notes"); hub.Notes.SelectNote(note.Id); Application.DoEvents();
                 var playerSources = (ComboBox)Field(hub.Notes, "audioSource"); if (playerSources.Items.Count != 1 || Convert.ToString(playerSources.SelectedItem) != "Computer") throw new Exception("Playback offers a nonexistent source.");
                 var tabs = (TabControl)Field(hub.Notes, "tabs"); tabs.SelectedIndex = 1; Application.DoEvents(); var transcript = (RichTextBox)Field(hub.Notes, "transcript"); if (!transcript.ReadOnly || !transcript.Text.Contains("original words")) throw new Exception("Conversation is missing or editable."); Snapshot(hub, Path.Combine(root, "conversation.png"));
                 Dialog(hub, "export", root, () => Invoke(hub.Notes, "ShowExportDialog"), dialog => {

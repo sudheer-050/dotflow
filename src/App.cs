@@ -120,10 +120,11 @@ namespace LocalDictation
         void ReportIssue(string message) { string entry = DateTime.Now.ToString("HH:mm:ss") + "  " + message; issues.Insert(0, entry); if (issues.Count > 20) issues.RemoveAt(20); if (hub != null && !hub.IsDisposed) hub.SetIssues(issues); }
         readonly Native.HookProc hookProc, mouseProc;
         IntPtr mouseHook;
-        readonly System.Windows.Forms.Timer liveTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+        readonly System.Windows.Forms.Timer liveTimer = new System.Windows.Forms.Timer { Interval = 250 };
         readonly ManualResetEvent liveIdle = new ManualResetEvent(true);
         int liveBusy;
         LiveRecognition liveRecognition;
+        LiveGrammar liveGrammar;
         string liveInserted = "";
         bool liveInterrupted, noteIndicator, sessionLiveWriting;
         IntPtr hook, target;
@@ -177,7 +178,7 @@ namespace LocalDictation
             menu.Items.Add("Preferences", null, (s, e) => ShowHub("Preferences"));
             menu.Items.Add("Stop and save note", null, (s, e) => { if (hub != null && hub.IsNoteRecording) hub.ToggleNote(hub.NoteMode); });
             menu.Items.Add("Exit", null, (s, e) => ExitThread());
-            tray = new NotifyIcon { Icon = AppLogo.Icon, Text = "Notewll 0.7.0 - hold " + config.Hotkey, Visible = true, ContextMenuStrip = menu };
+            tray = new NotifyIcon { Icon = AppLogo.Icon, Text = "Notewll 0.8.0 - hold " + config.Hotkey, Visible = true, ContextMenuStrip = menu };
             dock.RestorePosition(config.ToolbarX, config.ToolbarY);
             dock.Configure(config.ReducedMotion); dock.CancelWrite = Cancel;
             dock.ToggleWrite = () => { if (state.Current == AppState.Recording) StopRecording(); else StartRecording(); UpdateDock(); };
@@ -233,6 +234,7 @@ namespace LocalDictation
         {
             string problem = SpeechEngine.EnsureRunning(config, 150); engineReadiness = problem ?? "Ready - English speech stays on this device."; PostUi(() => { if (hub != null && !hub.IsDisposed) hub.SetReadiness(engineReadiness); });
             if (problem != null && tray.Visible) PostUi(() => { ReportIssue(problem); tray.ShowBalloonTip(6000, "Notewll", problem, ToolTipIcon.Warning); });
+            try { if (SpeechQuality.Available(config)) SpeechQuality.TryRefine(config.Copy(), "Hello."); } catch { }
         }
 
         void StartRecording()
@@ -248,22 +250,25 @@ namespace LocalDictation
                 recorder = rec;
             }
             catch (Exception ex) { Fail("Microphone problem: " + ex.Message); return; }
-            state.Move(AppState.Recording); generation++; if (liveRecognition != null) liveRecognition.Dispose(); liveRecognition = new LiveRecognition(); liveInserted = ""; liveInterrupted = mouseHook == IntPtr.Zero; if (sessionLiveWriting) liveTimer.Start();
+            state.Move(AppState.Recording); generation++; if (liveRecognition != null) liveRecognition.Dispose(); liveRecognition = new LiveRecognition(); var grammarConfig = config.Copy(); liveGrammar = new LiveGrammar(text => SpeechQuality.TryRefine(grammarConfig, text)); liveInserted = ""; liveInterrupted = mouseHook == IntPtr.Zero; liveTimer.Start();
             if (config.ShowVoiceIndicator) overlay.Display("● Recording from " + recorder.DeviceName + (recorder.FellBack ? " (saved mic not found — using default)" : "") + " — release " + config.Hotkey, Color.FromArgb(190, 45, 45));
         }
 
         void LiveTick()
         {
-            if (state.Current != AppState.Recording || recorder == null || !sessionLiveWriting || liveInterrupted || Interlocked.CompareExchange(ref liveBusy, 1, 0) != 0) return;
+            if (state.Current != AppState.Recording || recorder == null || Interlocked.CompareExchange(ref liveBusy, 1, 0) != 0) return;
             byte[] pcm = recorder.Snapshot(); int peak = recorder.Peak; int gen = generation; var cfg = config; var recognition = liveRecognition;
-            if (pcm.Length < 16000 || peak < 150) { Interlocked.Exchange(ref liveBusy, 0); return; }
+            if (pcm.Length < 8000 || peak < 150) { Interlocked.Exchange(ref liveBusy, 0); return; }
+            var grammar = liveGrammar;
             liveIdle.Reset();
             ThreadPool.QueueUserWorkItem(_ =>
             {
                 try
                 {
                     string text = recognition.Snapshot(pcm, peak, false);
-                    if (!overlay.IsDisposed) PostUi(() => { if (gen == generation && state.Current == AppState.Recording) ApplyLiveText(text.Trim()); });
+                    string corrected = grammar.Resolve(text.Trim(), 0);
+                    string formatted = WritingFormat.Compose(cfg, corrected);
+                    if (!overlay.IsDisposed) PostUi(() => { if (gen == generation && state.Current == AppState.Recording && sessionLiveWriting) ApplyLiveText(formatted); });
                 }
                 catch { } // The complete recording still goes through normal recovery on release.
                 finally { Interlocked.Exchange(ref liveBusy, 0); liveIdle.Set(); }
@@ -284,35 +289,35 @@ namespace LocalDictation
             if (state.Current != AppState.Recording) return;
             liveTimer.Stop();
             byte[] pcm = recorder.Stop();
-            string device = recorder.DeviceName; int peak = recorder.Peak;
+            int peak = recorder.Peak;
             recorder.Dispose(); recorder = null;
             recovery.Audio = (byte[])pcm.Clone(); recovery.Text = liveInserted; recovery.Message = "Captured speech can be retried.";
-            if (pcm.Length < 16000 * 2 / 3) { Fail("Too short — hold " + config.Hotkey + " while you speak."); return; }
-            if (peak < 150) { Fail("No sound captured from " + device + ". Pick another microphone in Settings."); return; }
+            if (pcm.Length < 16000 * 2 / 3 || peak < 150) { Cancel(); return; }
             state.Move(AppState.Processing);
             if (config.ShowVoiceIndicator) overlay.Display("Transcribing locally…", Color.FromArgb(50, 90, 170));
             int gen = ++generation;
-            var cfg = config; var recognition = liveRecognition;
+            var cfg = config; var recognition = liveRecognition; var grammar = liveGrammar;
             ThreadPool.QueueUserWorkItem(_ =>
             {
                 try
                 {
                     liveIdle.WaitOne();
-                    string raw = cfg.LiveWriting && recognition != null ? recognition.Snapshot(pcm, peak, true) : SpeechEngine.Transcribe(cfg, MicRecorder.ToWav(MicRecorder.Normalize(pcm, peak)));
+                    string raw = recognition != null ? recognition.Snapshot(pcm, peak, true) : SpeechEngine.Transcribe(cfg, MicRecorder.ToWav(MicRecorder.Normalize(pcm, peak)));
                     if (recognition != null) recognition.Dispose();
-                    PostUi(() => { if (!exiting && gen == generation) Finish(raw); });
+                    string refined = grammar != null ? grammar.Resolve(raw.Trim(), 600) : raw;
+                    PostUi(() => { if (!exiting && gen == generation) Finish(raw, refined); });
                 }
                 catch (Exception ex) { PostUi(() => { if (gen == generation) Fail(ex.Message); }); }
             });
         }
 
-        void Finish(string raw)
+        void Finish(string raw, string refined)
         {
             if (state.Current != AppState.Processing) return;
-            string text = WritingFormat.Compose(config, raw);
+            string text = WritingFormat.Compose(config, refined);
             recovery.Text = text;
             lastRaw = raw; lastCleaned = text;
-            if (text.Length == 0) { Fail("No speech was recognized."); return; }
+            if (String.IsNullOrWhiteSpace(text)) { Cancel(); return; }
             if (hub != null && !hub.IsDisposed)
             {
                 hub.UpdateTranscript(raw, text);
@@ -338,7 +343,7 @@ namespace LocalDictation
                 var original = recovery.Audio; var audio = original == null ? null : (byte[])original.Clone(); if (audio == null || recovering) { done(); return; } int revision = recovery.Revision; recovering = true;
                 ThreadPool.QueueUserWorkItem(_ =>
                 {
-                    try { string recovered = WritingFormat.Compose(config, SpeechEngine.Transcribe(config, MicRecorder.ToWav(audio))); if (revision == recovery.Revision) { recovery.Text = recovered; recovery.Message = "Recovered. Copy only what you need."; } }
+                    try { string recognized = SpeechQuality.Available(config) ? SpeechQuality.Recognize(config, audio, false).text : SpeechEngine.Transcribe(config, MicRecorder.ToWav(audio)); string recovered = WritingFormat.Compose(config, SpeechQuality.Refine(config, recognized)); if (revision == recovery.Revision) { recovery.Text = recovered; recovery.Message = "Recovered. Copy only what you need."; } }
                     catch (Exception ex) { if (revision == recovery.Revision) recovery.Message = ex.Message; }
                     finally { recovering = false; Array.Clear(audio, 0, audio.Length); done(); }
                 });
@@ -357,7 +362,7 @@ namespace LocalDictation
             if (liveInserted.Length > 0 && !liveInterrupted) ApplyLiveText("");
             if (state.Current == AppState.Recording)
             {
-                recorder.Dispose(); recorder = null; state.Move(AppState.Idle);
+                if (recorder != null) recorder.Dispose(); recorder = null; state.Move(AppState.Idle);
             }
             else if (state.Current == AppState.Processing) { generation++; state.Move(AppState.Idle); }
             else return;
@@ -465,7 +470,7 @@ namespace LocalDictation
             if (showHubEvent != null) showHubEvent.Dispose();
             if (hub != null) { hub.CloseToTray = false; hub.Dispose(); }
             if (recorder != null) recorder.Dispose();
-            if (liveRecognition != null) liveRecognition.Dispose(); SpeechEngine.Shutdown();
+            if (liveRecognition != null) liveRecognition.Dispose(); SpeechEngine.Shutdown(); ThreadPool.QueueUserWorkItem(_ => SpeechQuality.Shutdown());
             if (hook != IntPtr.Zero) Native.UnhookWindowsHookEx(hook);
             tray.Visible = false; tray.Dispose(); overlay.Close(); base.ExitThreadCore();
         }

@@ -13,14 +13,14 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-[assembly: AssemblyVersion("0.7.0.0")]
+[assembly: AssemblyVersion("0.8.0.0")]
 [assembly: AssemblyTitle("Notewll Setup")]
 [assembly: AssemblyProduct("Notewll")]
 namespace LocalDictationSetup
 {
     sealed class SetupForm : Form
     {
-        const string Version = "0.7.0", RegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\LocalDictation";
+        const string Version = "0.8.0", RegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\LocalDictation";
         const string ModelUrl = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip";
         const string RuntimeUrl = "https://github.com/alphacep/vosk-api/releases/download/v0.3.45/vosk-win64-0.3.45.zip";
         readonly string destination = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "LocalDictation");
@@ -98,7 +98,7 @@ namespace LocalDictationSetup
                 if (!File.Exists(Path.Combine(destination, "native", "libvosk.dll")) || !File.Exists(Path.Combine(destination, "model-small-en-us", "am", "final.mdl"))) throw new IOException("The speech files are incomplete. Retry setup.");
                 string exe = Path.Combine(destination, "LocalDictation.exe");
                 if (File.Exists(exe)) File.Copy(exe, Path.Combine(destination, "LocalDictation.previous.exe"), true);
-                File.WriteAllBytes(exe, Resource("Application")); File.WriteAllBytes(Path.Combine(destination, "THIRD_PARTY_NOTICES.md"), Resource("Notices"));
+                File.WriteAllBytes(exe, Resource("Application")); Directory.CreateDirectory(Path.Combine(destination, "engine")); File.WriteAllBytes(Path.Combine(destination, "engine", "quality_worker.py"), Resource("QualityWorker")); File.WriteAllBytes(Path.Combine(destination, "THIRD_PARTY_NOTICES.md"), Resource("Notices"));
                 cancellation.Token.ThrowIfCancellationRequested(); status.Text = "3/4 - Checking the installed speech model...";
                 var verified = await Task.Run(() =>
                 {

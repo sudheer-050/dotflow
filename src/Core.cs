@@ -7,8 +7,8 @@ using System.Web.Script.Serialization;
 
 [assembly: System.Reflection.AssemblyTitle("Notewll")]
 [assembly: System.Reflection.AssemblyProduct("Notewll")]
-[assembly: System.Reflection.AssemblyVersion("0.7.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.7.0.0")]
+[assembly: System.Reflection.AssemblyVersion("0.8.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.8.0.0")]
 
 namespace LocalDictation
 {
@@ -42,6 +42,8 @@ namespace LocalDictation
         // "system-default" or the exact name of a capture device from the settings list.
         public string Microphone { get; set; }
         public bool CleanupEnabled { get; set; }
+        public bool QualityEnabled { get; set; }
+        public string QualityPython { get; set; }
         public bool AutoPaste { get; set; }
         public bool LiveWriting { get; set; }
         public string PasteMethod { get; set; }
@@ -73,6 +75,7 @@ namespace LocalDictation
         public Config Copy() { var json = new JavaScriptSerializer(); return json.Deserialize<Config>(json.Serialize(this)); }
         public Config()
         {
+            QualityPython = ""; QualityEnabled = false;
             NotesSort = "Newest"; ExportFormat = "PDF"; WritingStyle = "Standard";
             UpdateManifestUrl = UpdatePublisherThumbprint = ""; Theme = "System"; ShowToolbar = true; ShowVoiceIndicator = false; ReduceNoise = true; ReducedMotion = false; NoteMicrophoneId = NoteOutputId = ""; Personalization = new List<PersonalRule>();
             Hotkey = "F8"; NotesHotkey = "Ctrl+Shift+N"; NotesSource = "Microphone"; MeetingSource = "Both"; ToolbarX = ToolbarY = Int32.MinValue; Microphone = DefaultMic; CleanupEnabled = true; AutoPaste = true; LiveWriting = true; PasteMethod = "Auto"; StartWithWindows = false; AutoStartStt = true;
@@ -117,6 +120,7 @@ namespace LocalDictation
 
         public void Validate()
         {
+            if (QualityEnabled && !File.Exists(QualityPython)) throw new InvalidDataException("Run scripts/setup_quality.ps1 to install enhanced local speech before enabling it.");
             Hotkey = Shortcut.Format(Shortcut.Parse(Hotkey));
             NotesHotkey = Shortcut.Format(Shortcut.Parse(NotesHotkey));
             if (Personalization == null) Personalization = new List<PersonalRule>();

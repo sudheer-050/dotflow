@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$version = '0.7.0'
+$version = '0.8.0'
 $build = Join-Path $root 'build'
 $dist = Join-Path $root 'dist'
 New-Item -ItemType Directory -Force $build, $dist | Out-Null
@@ -11,3 +11,6 @@ $sources = Get-ChildItem "$root\src\*.cs" | ForEach-Object { $_.FullName }
 if ($LASTEXITCODE -ne 0) { throw 'Compilation failed.' }
 Copy-Item "$build\LocalDictation.exe" "$dist\LocalDictation-$version.exe" -Force
 Write-Host "Built $dist\LocalDictation-$version.exe"
+
+New-Item -ItemType Directory -Force "$build\engine" | Out-Null
+Copy-Item "$root\engine\quality_worker.py" "$build\engine\quality_worker.py" -Force

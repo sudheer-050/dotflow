@@ -21,6 +21,7 @@ namespace LocalDictation
             Command("open \"" + Path.GetFullPath(path) + "\" type mpegvideo alias " + alias); opened = true; Command("set " + alias + " time format milliseconds");
         }
         public void Play(int milliseconds = -1) { if (!opened) throw new IOException("Choose a recording first."); Command("play " + alias + (milliseconds < 0 ? "" : " from " + milliseconds)); }
+        public void PlaySample(int start, int end) { if (!opened) throw new IOException("Choose a recording first."); Command("play " + alias + " from " + Math.Max(0, start) + " to " + Math.Max(start + 1, end)); }
         public void Pause() { if (opened) Command("pause " + alias); }
         public void Speed(double rate) { if (opened) Command("set " + alias + " speed " + (int)(rate * 1000)); }
         public int Position

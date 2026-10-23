@@ -22,9 +22,15 @@ namespace LocalDictation
                 if (rule.Trigger.Length > 120 || rule.Replacement.Length > 8000 || !seen.Add(rule.Trigger)) throw new ArgumentException("Triggers must be unique and at most 120 characters; replacement limit is 8,000 characters.");
             }
         }
-        public static string Apply(Config config, string text)
+        public static string[] Vocabulary(Config config)
         {
-            foreach (var rule in config.Personalization.OrderByDescending(r => r.Trigger.Length))
+            // ponytail: bounded saved spellings bias decoding; snippets never become speech hints.
+            return config.Personalization.Where(r => r.Kind == "Word" && r.Replacement.Length <= 80 && !r.Replacement.Any(Char.IsControl))
+                .Select(r => r.Replacement.Trim()).Where(v => v.Length > 0).Reverse().Distinct(StringComparer.OrdinalIgnoreCase).Take(24).Reverse().ToArray();
+        }
+        public static string Apply(Config config, string text, bool wordsOnly = false)
+        {
+            foreach (var rule in config.Personalization.Where(r => !wordsOnly || r.Kind == "Word").OrderByDescending(r => r.Trigger.Length))
                 text = Regex.Replace(text, @"(?<![\p{L}\p{N}])" + Regex.Escape(rule.Trigger) + @"(?![\p{L}\p{N}])", m => rule.Replacement, RegexOptions.IgnoreCase);
             return text;
         }
@@ -39,7 +45,7 @@ namespace LocalDictation
                 var trigger = new TextBox { Dock = DockStyle.Top, MaxLength = 120, AccessibleName = "What you say" }; trigger.Text = initial == null ? "" : initial.Trigger;
                 var replacement = new TextBox { Dock = DockStyle.Fill, Multiline = true, AcceptsReturn = true, ScrollBars = ScrollBars.Vertical, MaxLength = 8000, AccessibleName = "What to write" }; replacement.Text = initial == null ? "" : DialogUi.Lines(initial.Replacement);
                 layout.Controls.Add(kind, 0, 0); layout.Controls.Add(DialogUi.Text("What you say - for example, my address"), 0, 1); layout.Controls.Add(trigger, 0, 2); layout.Controls.Add(DialogUi.Text("What to write - the correct spelling or expanded text"), 0, 3); layout.Controls.Add(replacement, 0, 4);
-                layout.Controls.Add(DialogUi.Text("Used for dictation only. Your recorded conversation is never rewritten."), 0, 5);
+                layout.Controls.Add(DialogUi.Text("Word entries also guide enhanced speech recognition. Snippets expand only in dictation."), 0, 5);
                 PersonalRule result = null; var actions = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
                 actions.Controls.Add(DialogUi.Button("Use entry", (s, e) => { try { var entry = new PersonalRule { Kind = kind.Text, Trigger = trigger.Text.Trim(), Replacement = replacement.Text }; Validate(new[] { entry }); result = entry; dialog.Close(); } catch (Exception ex) { MessageBox.Show(dialog, ex.Message, "Check this entry"); } }, true)); actions.Controls.Add(DialogUi.Button("Cancel", (s, e) => dialog.Close())); layout.Controls.Add(actions, 0, 6);
                 dialog.Controls.Add(layout); ThemeColors.Apply(dialog, theme); dialog.ShowDialog(owner); return result;
