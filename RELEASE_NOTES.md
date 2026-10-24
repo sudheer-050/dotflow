@@ -1,3 +1,31 @@
+# Notewll 0.9.0 - Speak. Write. Make it yours.
+
+Your next thought should not get stuck behind a keyboard. Notewll brings voice typing, personal notes and meeting recordings into one private Windows workspace - with a floating ball that has a personality of its own.
+
+## One download. Ready for offline English speech.
+
+Download **Notewll-Setup-0.9.0.exe**, open it, and install. This single file includes the Windows app, native speech runtime, English model and uninstaller. The standard installation needs no internet connection, Python, Docker, terminal commands or cloud account.
+
+## Your voice. Your orbit.
+
+- **Speak into your workflow.** Hold your chosen shortcut to dictate into the focused text field. Keep personal notes and meeting recordings in the same workspace.
+- **A ball you can actually throw.** Drag, release, watch it bounce and roll to the bottom edge. Click to open the animated half-circle menu.
+- **Make it yours.** Choose from 19 appearances: sports balls, solar-system worlds, or plain Color and Gradient. Pick any color from a live color range.
+- **Choose your gravity.** Nine environments change the fall and airtime; a live bounce sample makes the difference visible.
+- **Pick your scale.** Separate size controls for the ball and expanded menu. Tiles and icons grow with the menu.
+- **Put your own image in orbit.** Choose an image from a local folder. It stays local and spins with the ball.
+- **Keep the controls clear.** Black icons sit on round white tiles at 50% opacity. Live previews show the ball and expanded tray while you customize.
+
+## Installation and compatibility
+
+Windows 10/11 x64 with .NET Framework 4.8. English speech model included. A microphone is needed for microphone capture; computer-audio recording uses the Windows output device. Existing notes, recordings and preferences are preserved during upgrades.
+
+This is an **unsigned Windows preview**. Optional enhanced recognition and meeting-voice models require their separate local setup/model downloads; they are not included in this installer. Recognition accuracy depends on the audio and model. No accuracy percentage, universal latency guarantee or signed automatic-update claim is made.
+
+SHA256SUMS.txt accompanies the installer. Build and isolated offline-bundle checks are documented in verification/RELEASE_0.9.0.md.
+
+---
+
 # Floating ball customization - source update
 
 This source update adds a click-to-open floating ball, an animated half-circle menu, black icons on 50%-opacity white round tiles, and gravity-driven throw/bounce/settling behavior. No fire or trail effects remain.

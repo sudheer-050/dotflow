@@ -8,8 +8,8 @@ using System.Web.Script.Serialization;
 
 [assembly: System.Reflection.AssemblyTitle("Notewll")]
 [assembly: System.Reflection.AssemblyProduct("Notewll")]
-[assembly: System.Reflection.AssemblyVersion("0.8.1.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.8.1.0")]
+[assembly: System.Reflection.AssemblyVersion("0.9.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.9.0.0")]
 
 namespace LocalDictation
 {

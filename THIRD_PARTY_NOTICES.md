@@ -10,7 +10,7 @@ The Vosk Windows binary distribution includes the GCC runtime libraries libgcc_s
 GCC Runtime Library Exception: https://www.gnu.org/licenses/gcc-exception-3.1.html
 MinGW runtime source and license notices: https://www.mingw-w64.org/
 
-The base installer downloads the native Vosk runtime and small English model. Optional accurate dictation uses a separately installed Python environment, onnx-asr and ONNX Runtime on CPU, with separately downloaded NVIDIA Parakeet TDT 0.6B v2 weights (CC BY 4.0). It does not package Holly, Docker, CUDA or the Parakeet model weights. Recognition stays local after setup.
+The single-file installer includes the native Vosk runtime and small English model. Optional accurate dictation uses a separately installed Python environment, onnx-asr and ONNX Runtime on CPU, with separately downloaded NVIDIA Parakeet TDT 0.6B v2 weights (CC BY 4.0). It does not package Holly, Docker, CUDA or the Parakeet model weights. Recognition stays local after setup.
 
 Parakeet model card and license: https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2
 ONNX conversion: https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx

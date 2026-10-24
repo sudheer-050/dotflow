@@ -1,9 +1,9 @@
 param([string]$Repository = 'sudheer-050/notewll', [switch]$PrepareOnly, [string]$AccuracyReferences = '', [string]$AccuracyHypotheses = '')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$version = '0.8.1'
+$version = '0.9.0'
 $stage = Join-Path $projectRoot "release\notewll-$version"
-$installer = Join-Path $projectRoot "dist\Notewll-Setup-$version.exe"
+$installer = Join-Path $projectRoot "dist\Notewll-Setup.exe"
 $releaseNotes = Join-Path $projectRoot "dist\RELEASE_NOTES-$version.md"
 if ($Repository -notmatch '^[A-Za-z0-9-]+/[A-Za-z0-9_.-]+$') { throw 'Use owner/repository for the GitHub repository.' }
 if (-not $PrepareOnly) {

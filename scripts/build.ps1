@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$version = '0.8.1'
+$version = '0.9.0'
 $build = Join-Path $root 'build'
 $dist = Join-Path $root 'dist'
 New-Item -ItemType Directory -Force $build, $dist | Out-Null

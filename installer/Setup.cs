@@ -4,7 +4,6 @@ using System.Drawing;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -13,14 +12,14 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-[assembly: AssemblyVersion("0.8.1.0")]
+[assembly: AssemblyVersion("0.9.0.0")]
 [assembly: AssemblyTitle("Notewll Setup")]
 [assembly: AssemblyProduct("Notewll")]
 namespace LocalDictationSetup
 {
     sealed class SetupForm : Form
     {
-        const string Version = "0.8.1", RegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\LocalDictation";
+        const string Version = "0.9.0", RegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\LocalDictation";
         const string ModelUrl = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip";
         const string RuntimeUrl = "https://github.com/alphacep/vosk-api/releases/download/v0.3.45/vosk-win64-0.3.45.zip";
         readonly string destination = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "LocalDictation");
@@ -44,10 +43,10 @@ namespace LocalDictationSetup
             this.uninstall = uninstall; AutoScaleMode = AutoScaleMode.None; Font = new Font("Segoe UI", 10);
             Text = uninstall ? "Uninstall Notewll" : "Notewll Setup"; BackColor = Color.FromArgb(250, 249, 246);
             ClientSize = new Size(620, 440); FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen;
-            description.Text = uninstall ? "Remove the application. Your notes, audio and preferences will be kept." : "Internet required during installation.\nSetup downloads the English speech model (about 40 MB) and supporting files automatically. Keep connected until setup finishes.";
+            description.Text = uninstall ? "Remove the application. Your notes, audio and preferences will be kept." : "One file. Offline English voice typing and notes.\nIncludes the app, speech engine and English model.\nEnhanced recognition models are optional downloads.";
             Controls.AddRange(new Control[] { heading, description, desktop, removeSpeech, removeNotes, progress, status, action, close });
             close.Text = "Cancel"; close.Visible = true; close.Click += (s, e) => { if (busy) { cancellation.Cancel(); close.Enabled = false; status.Text = "Canceling safely..."; } else Close(); };
-            status.Text = "Windows 64-bit | Version " + Version + "\nOne-time download: about 40 MB for the model, plus the native engine.";
+            status.Text = "Windows 64-bit | Version " + Version + "\nReady to install. Your saved notes and preferences will be kept.";
             removeSpeech.Visible = removeNotes.Visible = uninstall;
             if (uninstall) { desktop.Visible = false; action.Text = "Uninstall"; status.Text = "Your saved notes remain in LocalAppData\\LocalDictation\\Notes."; }
             action.Click += async (s, e) =>
@@ -89,11 +88,11 @@ namespace LocalDictationSetup
                 string cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LocalDictation", "SetupCache"); Directory.CreateDirectory(cache);
                 if (!File.Exists(Path.Combine(destination, "native", ".installed")))
                 {
-                    string zip = Path.Combine(cache, "vosk-win64-0.3.45.zip"); await Download(RuntimeUrl, zip, "1/4 - Offline engine"); await Task.Run(() => Extract(zip, Path.Combine(destination, "native"), true, cancellation.Token)); cancellation.Token.ThrowIfCancellationRequested(); File.WriteAllText(Path.Combine(destination, "native", ".installed"), "0.3.45");
+                    string zip = Path.Combine(cache, "vosk-win64-0.3.45.zip"); await Unpack(RuntimeUrl, zip, "1/4 - Offline engine"); await Task.Run(() => Extract(zip, Path.Combine(destination, "native"), true, cancellation.Token)); cancellation.Token.ThrowIfCancellationRequested(); File.WriteAllText(Path.Combine(destination, "native", ".installed"), "0.3.45");
                 }
                 if (!File.Exists(Path.Combine(destination, "model-small-en-us", ".installed")))
                 {
-                    string zip = Path.Combine(cache, "vosk-model-small-en-us-0.15.zip"); await Download(ModelUrl, zip, "2/4 - English model"); await Task.Run(() => Extract(zip, Path.Combine(destination, "model-small-en-us"), false, cancellation.Token)); cancellation.Token.ThrowIfCancellationRequested(); File.WriteAllText(Path.Combine(destination, "model-small-en-us", ".installed"), "small-en-us-0.15");
+                    string zip = Path.Combine(cache, "vosk-model-small-en-us-0.15.zip"); await Unpack(ModelUrl, zip, "2/4 - English model"); await Task.Run(() => Extract(zip, Path.Combine(destination, "model-small-en-us"), false, cancellation.Token)); cancellation.Token.ThrowIfCancellationRequested(); File.WriteAllText(Path.Combine(destination, "model-small-en-us", ".installed"), "small-en-us-0.15");
                 }
                 if (!File.Exists(Path.Combine(destination, "native", "libvosk.dll")) || !File.Exists(Path.Combine(destination, "model-small-en-us", "am", "final.mdl"))) throw new IOException("The speech files are incomplete. Retry setup.");
                 string exe = Path.Combine(destination, "LocalDictation.exe");
@@ -102,7 +101,7 @@ namespace LocalDictationSetup
                 cancellation.Token.ThrowIfCancellationRequested(); status.Text = "3/4 - Checking the installed speech model...";
                 var verified = await Task.Run(() =>
                 {
-                    using (var check = Process.Start(new ProcessStartInfo { FileName = exe, Arguments = "--ensure-stt", WorkingDirectory = destination, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true }))
+                    using (var check = Process.Start(new ProcessStartInfo { FileName = exe, Arguments = "--installed-speech-check", WorkingDirectory = destination, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true }))
                     {
                         if (!check.WaitForExit(60000)) { check.Kill(); return "Speech model check timed out."; }
                         return check.ExitCode == 0 ? null : check.StandardError.ReadToEnd() + check.StandardOutput.ReadToEnd();
@@ -111,7 +110,7 @@ namespace LocalDictationSetup
                 if (verified != null) { File.Delete(Path.Combine(destination, "native", ".installed")); File.Delete(Path.Combine(destination, "model-small-en-us", ".installed")); throw new IOException(verified); }
                 cancellation.Token.ThrowIfCancellationRequested(); status.Text = "4/4 - Finishing installation...";
                 string uninstaller = Path.Combine(destination, "Uninstall.exe");
-                if (!String.Equals(Assembly.GetExecutingAssembly().Location, uninstaller, StringComparison.OrdinalIgnoreCase)) File.Copy(Assembly.GetExecutingAssembly().Location, uninstaller, true);
+                if (!String.Equals(Assembly.GetExecutingAssembly().Location, uninstaller, StringComparison.OrdinalIgnoreCase)) File.WriteAllBytes(uninstaller, Resource("Uninstaller"));
                 foreach (var parent in new[] { Environment.SpecialFolder.Programs, Environment.SpecialFolder.DesktopDirectory })
                 foreach (string oldName in new[] { "Local Dictation.lnk", "Dotflow.lnk", "Dotwell.lnk" })
                 {
@@ -137,7 +136,7 @@ namespace LocalDictationSetup
             Text = "Notewll - Installed";
             heading.Text = "You're all set";
             description.Text = "Notewll installed successfully.\nYour English speech model is ready. Open the app to start writing and taking notes.";
-            desktop.Visible = progress.Visible = false;
+            progress.Style = ProgressBarStyle.Continuous; desktop.Visible = progress.Visible = false;
             status.Text = "No further downloads are needed for speech recognition.\nYou can use the app offline.";
             action.Text = "Open app";
             close.Visible = true; close.Text = "Close";
@@ -147,23 +146,26 @@ namespace LocalDictationSetup
             long bytes = Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).Sum(path => new FileInfo(path).Length);
             return (int)Math.Min(Int32.MaxValue, (bytes + 1023) / 1024);
         }
-        async Task Download(string url, string target, string message)
+        async Task Unpack(string url, string target, string message)
         {
             string expected = url == ModelUrl ? ModelHash : RuntimeHash;
-            if (File.Exists(target)) { if (MatchesHash(target, expected)) return; File.Delete(target); }
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12; status.Text = message; progress.Value = 0;
-            using (var client = new WebClient())
-            using (cancellation.Token.Register(client.CancelAsync))
-            {
-                client.Headers[HttpRequestHeader.UserAgent] = "LocalDictation-Setup/" + Version;
-                client.DownloadProgressChanged += (s, e) => { progress.Value = Math.Max(0, Math.Min(100, e.ProgressPercentage)); status.Text = message + " - " + (e.BytesReceived / 1048576.0).ToString("0.0") + " MB"; };
-                await client.DownloadFileTaskAsync(new Uri(url), target + ".partial");
-            }
-            cancellation.Token.ThrowIfCancellationRequested();
-            if (!MatchesHash(target + ".partial", expected)) throw new IOException("Downloaded speech files failed the SHA-256 integrity check. Retry setup.");
-            using (var zip = ZipFile.OpenRead(target + ".partial")) if (zip.Entries.Count == 0) throw new IOException("The download was empty.");
-            File.Copy(target + ".partial", target, true); File.Delete(target + ".partial");
+            status.Text = message + " - Unpacking included speech files...";
+            progress.Style = ProgressBarStyle.Marquee;
+            await Task.Run(() => {
+                if (File.Exists(target) && MatchesHash(target, expected)) return;
+                string temporary = target + ".partial";
+                try {
+                    using (var input = Assembly.GetExecutingAssembly().GetManifestResourceStream(url == ModelUrl ? "SpeechModelZip" : "SpeechRuntimeZip"))
+                    using (var output = File.Create(temporary)) {
+                        byte[] buffer = new byte[131072]; int read;
+                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0) { cancellation.Token.ThrowIfCancellationRequested(); output.Write(buffer, 0, read); }
+                    }
+                    if (!MatchesHash(temporary, expected)) throw new IOException("Included speech files failed the integrity check.");
+                    File.Copy(temporary, target, true);
+                } finally { if (File.Exists(temporary)) File.Delete(temporary); }
+            });
         }
+
         static bool MatchesHash(string path, string expected) { using (var hash = SHA256.Create()) using (var file = File.OpenRead(path)) return BitConverter.ToString(hash.ComputeHash(file)).Replace("-", "").Equals(expected, StringComparison.OrdinalIgnoreCase); }
         public static void Extract(string archive, string target, bool librariesOnly, CancellationToken token = default(CancellationToken))
         {
@@ -217,13 +219,32 @@ namespace LocalDictationSetup
         {
             if (args.Length == 3 && args[0] == "--verify-hash") { Console.Write(MatchesHash(args[1], args[2]) ? "valid" : "invalid"); return 0; }
             if (args.Length == 2 && args[0] == "--installed-size") { Console.Write(InstalledKilobytes(args[1])); return 0; }
-            if (args.Length > 0 && args[0] == "--inspect") { using (var hash = SHA256.Create()) Console.Write("version=" + Version + "|platform=Windows-x64|scope=current-user|engine=Vosk-small-English|model-download=once|payload-sha256=" + BitConverter.ToString(hash.ComputeHash(Resource("Application"))).Replace("-", "").ToLowerInvariant()); return 0; }
+            if (args.Length == 2 && args[0] == "--test-bundle") {
+                try {
+                    string target = Path.GetFullPath(args[1]); Directory.CreateDirectory(target);
+                    foreach (string name in new[] { "SpeechRuntimeZip", "SpeechModelZip" }) {
+                        string zip = Path.Combine(target, name + ".zip"); File.WriteAllBytes(zip, Resource(name));
+                        if (!MatchesHash(zip, name == "SpeechModelZip" ? ModelHash : RuntimeHash)) throw new IOException("Invalid embedded archive");
+                        Extract(zip, Path.Combine(target, name == "SpeechModelZip" ? "model-small-en-us" : "native"), name == "SpeechRuntimeZip"); File.Delete(zip);
+                    }
+                    File.WriteAllBytes(Path.Combine(target, "LocalDictation.exe"), Resource("Application"));
+                    File.WriteAllBytes(Path.Combine(target, "Uninstall.exe"), Resource("Uninstaller"));
+                    Console.Write("bundle-ok|offline=true"); return 0;
+                } catch (Exception ex) { Console.Error.Write(ex.Message); return 2; }
+            }
+            if (args.Length > 0 && args[0] == "--inspect") { using (var hash = SHA256.Create()) Console.Write("version=" + Version + "|platform=Windows-x64|scope=current-user|engine=Vosk-small-English|model-download=none|offline-install=true|payload-sha256=" + BitConverter.ToString(hash.ComputeHash(Resource("Application"))).Replace("-", "").ToLowerInvariant()); return 0; }
             if (args.Length > 0 && args[0] == "--inspect-accuracy") { using (var hash = SHA256.Create()) Console.Write("worker-sha256=" + BitConverter.ToString(hash.ComputeHash(Resource("AccurateWorker"))).Replace("-", "").ToLowerInvariant() + "|detector-sha256=" + BitConverter.ToString(hash.ComputeHash(Resource("SpeechDetector"))).Replace("-", "").ToLowerInvariant()); return 0; }
             if (args.Length == 4 && args[0] == "--test-extract") { try { Extract(args[1], args[2], args[3] == "dll"); return 0; } catch (Exception ex) { Console.Error.Write(ex.Message); return 2; } }
             Application.EnableVisualStyles();
-            using (var form = new SetupForm(args.Contains("--uninstall")))
+            using (var form = new SetupForm(
+#if UNINSTALLER
+true
+#else
+args.Contains("--uninstall")
+#endif
+))
             {
-                if (args.Length == 2 && (args[0] == "--preview" || args[0] == "--preview-success")) { if (args[0] == "--preview-success") form.ShowSuccess(); form.Show(); Application.DoEvents(); using (var bitmap = new Bitmap(form.Width, form.Height)) using (var graphics = Graphics.FromImage(bitmap)) { IntPtr dc = graphics.GetHdc(); try { PrintWindow(form.Handle, dc, 2); } finally { graphics.ReleaseHdc(dc); } bitmap.Save(args[1]); } return 0; }
+                if (args.Length == 2 && (args[0] == "--preview" || args[0] == "--preview-success")) { if (args[0] == "--preview-success") form.ShowSuccess(); form.Show(); Application.DoEvents(); using (var bitmap = new Bitmap(form.Width, form.Height)) { form.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size)); bitmap.Save(args[1]); } return 0; }
                 Application.Run(form); return 0;
             }
         }

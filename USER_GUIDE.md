@@ -1,4 +1,4 @@
-# Notewll 0.8.1 user guide
+# Notewll 0.9.0 user guide
 
 ## Install and start
 
@@ -32,15 +32,15 @@ The current local recognizer transcribes the recording. Dictionary pairs that re
 
 Snippets still use a typed trigger and saved expansion, such as saying "my signature" to insert a full sign-off. Snippets do not become speech-recognition hints.
 
-## Edge toolbar
+## Floating ball controls
 
-Hover the slim bar to reveal three vector icons: Dictation, Personal notes, and Meetings/conversations. Hover an icon for its name. Dictation writes in the current field; activate again to stop/refine. While processing, its icon cancels the transcription; Escape also cancels. Personal note/Meeting start recordings; activate again to stop/save. Open Notewll from the Windows tray when you need the full application.
+Click the ball to reveal Dictation, Personal notes and Meeting icons in a half-circle menu. Each black icon sits on a white round tile at 50% opacity. Dictation writes into the focused field; activate again to stop. During transcription, click the processing indicator or press Escape to cancel. Notes and Meeting controls start and stop their respective recordings.
 
-Drag the bar/grip and release to snap to the nearest edge. Side edges use a vertical bar; top/bottom use a horizontal bar. Position is remembered. App preferences control visibility, separate voice animation, reduced motion, theme and startup. The Windows system tray offers one-hour hide, Show toolbar and a keyboard action menu.
+Drag the ball and release to throw it. Gravity, collisions and rolling friction bring it to rest at the bottom edge. The collapsed ball and expanded menu have separate size controls in Preferences > Ball. Click opens the menu; moving away collapses it. The Windows system tray also offers the full app, one-hour hide, Show toolbar and a keyboard action menu.
 
 ## Notes and meetings
 
-Start without a title/name. Content and recognized introductions fill them; Edit details corrects them later. Manual title/name edits are preserved. Shared output remains labelled as computer audio; there is no voice diarization.
+Start without a title/name. Content and recognized introductions fill them; Edit details corrects them later. Manual title/name edits are preserved. Standard recordings label their audio source. Optional enhanced meeting recognition adds editable voice groups; review suggested speakers rather than treating them as verified identities.
 
 Next recording selects My microphone, Computer audio or Both sources. Devices chooses endpoints; use the output selected in Zoom/Meet. Recorded-source metadata is separate from the next-recording dropdown. Watch both meters when capturing both. Headphones reduce duplicates. Pause preserves elapsed time in the same note; Resume continues. Stop saves audio and finishes recognition. Device errors preserve audio: select a working device and use More > Resume where available.
 

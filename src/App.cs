@@ -197,7 +197,7 @@ namespace LocalDictation
             menu.Items.Add("Preferences", null, (s, e) => ShowHub("Preferences"));
             menu.Items.Add("Stop and save note", null, (s, e) => { if (hub != null && hub.IsNoteRecording) hub.ToggleNote(hub.NoteMode); });
             menu.Items.Add("Exit", null, (s, e) => ExitThread());
-            tray = new NotifyIcon { Icon = AppLogo.Icon, Text = "Notewll 0.8.1 - hold " + config.Hotkey, Visible = true, ContextMenuStrip = menu };
+            tray = new NotifyIcon { Icon = AppLogo.Icon, Text = "Notewll 0.9.0 - hold " + config.Hotkey, Visible = true, ContextMenuStrip = menu };
             dock.RestorePosition(config.ToolbarX, config.ToolbarY);
             dock.Configure(config.ReducedMotion); dock.ConfigureBall(config); dock.CancelWrite = Cancel;
             dock.ToggleWrite = () => { if (state.Current == AppState.Recording) StopRecording(); else StartRecording(); UpdateDock(); };

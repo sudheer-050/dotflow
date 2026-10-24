@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -103,7 +103,7 @@ namespace LocalDictation
             Label(noteSettings, "Recording shortcut - select one", 20, 20, 620, 28, 11, true, Ink); Setting(noteSettings, noteShortcut, 58);
             Label(noteSettings, "Personal-note audio", 20, 120, 620, 28, 11, true, Ink); Setting(noteSettings, noteSource, 158);
             Label(noteSettings, "Meeting audio", 20, 220, 620, 28, 11, true, Ink); Setting(noteSettings, meetingSource, 258); Setting(noteSettings, noiseChoice, 324);
-            Label(noteSettings, "The shortcut toggles personal notes. Start meetings from Home or the hover toolbar.\nNoise suppression reduces quiet sound; it does not guarantee removal of music or every background voice.", 20, 376, 620, 74, 9, false, Muted);
+            Label(noteSettings, "The shortcut toggles personal notes. Start meetings from Home or the floating ball.\nNoise suppression reduces quiet sound; it does not guarantee removal of music or every background voice.", 20, 376, 620, 74, 9, false, Muted);
             var appearance = SettingsTab("App");
             toolbarChoice.Checked = source.ShowToolbar; indicatorChoice.Checked = source.ShowVoiceIndicator; motionChoice.Checked = source.ReducedMotion; noiseChoice.Checked = source.ReduceNoise;
             toolbarStatus = Label(appearance, "Toolbar: " + (source.ShowToolbar ? "Ready on the screen edge" : "Hidden in preferences"), 20, 324, 620, 44, 9, false, Muted); Setting(appearance, toolbarChoice, 40); Setting(appearance, indicatorChoice, 86); Setting(appearance, motionChoice, 132); Setting(appearance, startup, 178);
@@ -114,8 +114,8 @@ namespace LocalDictation
             Label(storage, "Recordings, deleted notes and download cache use disk space.\nBack up notes before moving them. Conversation exports can include private annotations.\nSpeech and notes stay on this PC; no account or cloud subscription is required.", 20, 78, 620, 110, 10, false, Muted);
             Button(storage, "Storage & recently deleted", 20, 220, 284, (s, e) => { if (notes != null && !notes.Busy) { NotesStorageDialog.Show(this, notes.Store, source); notes.ReloadLibrary(); } else MessageBox.Show(this, "Finish the current recording/transcription before managing storage."); });
             var about = SettingsTab("About");
-            Label(about, "Notewll 0.8.1", 20, 20, 620, 38, 18, true, Ink);
-            Label(about, "Windows x64 | English | Vosk small-en-us 0.15\nOffline speech after one-time installation.\n\nThis release adds speech recovery, organized settings, richer notes,\nplayback, scoped exports, storage recovery, dictionary and snippets.\n\nConversation text is read-only in the app. External document protections\nare convenience restrictions, not proof that a copy was never changed.", 20, 82, 630, 220, 10, false, Muted);
+            Label(about, "Notewll 0.9.0", 20, 20, 620, 38, 18, true, Ink);
+            Label(about, "Windows x64 | English | One-file offline setup\nIncludes the app, speech runtime and English model.\n\nVoice typing, personal notes and meeting recordings.\nCustomizable floating ball with gravity, bounce and rolling.\nLive color/gradient previews, separate ball/menu sizes, and rotating local images.\n\nEnhanced recognition models are optional downloads.\nThis Windows preview is unsigned.", 20, 82, 630, 220, 10, false, Muted);
             Button(about, "Open release notes", 20, 336, 220, (s, e) => ShowReleaseNotes());
             Button(about, "Check for updates", 260, 336, 220, async (s, e) => await ReleaseUpdates.Check(this, source));
             var updateInfo = String.IsNullOrWhiteSpace(source.UpdateManifestUrl) || String.IsNullOrWhiteSpace(source.UpdatePublisherThumbprint) ? "Check for updates opens GitHub Releases. Run the latest installer to update; your notes and preferences are kept." : "Signed updates are available from this publisher. Downloads are verified before installation.";
@@ -153,7 +153,8 @@ namespace LocalDictation
         }
         internal void SelectSettingsCategory(string name) { foreach (TabPage tab in settingsTabs.TabPages) if (tab.Text == name) { settingsTabs.SelectedTab = tab; break; } }
         static void OpenPermissionSettings() { try { System.Diagnostics.Process.Start("ms-settings:privacy-microphone"); } catch (Exception ex) { MessageBox.Show(ex.Message, "Open microphone settings"); } }
-        void ShowReleaseNotes() { MessageBox.Show(this, "0.8.1\n\nOptional Parakeet recognition with local speech detection.\nWait for Ready before using accurate dictation.\nShortcut typing no longer waits for a separate grammar service.\nPractice, audio-file checks and recovery use the chosen dictation engine.\nConservative cleanup preserves recognized words and critical facts.\nCancel no longer waits for an in-flight inference.\nNotes, recordings and shortcut preferences are preserved.\n\n21 synthetic non-speech controls returned no text. Twelve of thirteen speech replays finished within one second; one longer replay took about two seconds. Human-reference accuracy and physical desktop typing still need acceptance testing.", "Release notes"); }
+        void ShowReleaseNotes() { MessageBox.Show(this, "0.9.0\n\nOne-file offline installation for Windows x64.\nVoice typing, personal notes and meeting recordings.\nA floating ball you can throw, bounce and customize.\nSports and planet skins, nine gravity environments and live previews.\nIndependent ball/menu sizing, custom colors and rotating local images.\nReadable black icons on translucent round white tiles.\n\nThe installer includes the basic English speech engine and model. Enhanced recognition models are optional downloads. This Windows preview is unsigned; real microphone, call and cross-app typing acceptance still depends on the desktop environment.", "Release notes"); }
+
         public void ShowFirstRunGuide() { FirstRunSetup(); source.SetupGuideSeen = true; source.Save(); }
         void FirstRunSetup()
         {

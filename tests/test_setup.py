@@ -5,7 +5,7 @@ from pathlib import Path
 
 from test_app import ROOT
 
-SETUP = ROOT / "dist" / "Notewll-Setup-0.8.1.exe"
+SETUP = ROOT / "dist" / "Notewll-Setup-0.9.0.exe"
 
 
 def test_setup_reports_installed_size_in_rounded_up_kilobytes(tmp_path):
@@ -21,7 +21,7 @@ def test_setup_reports_installed_size_in_rounded_up_kilobytes(tmp_path):
 def test_setup_contains_the_exact_current_application():
     result = subprocess.run([str(SETUP), "--inspect"], capture_output=True, text=True, timeout=15)
     assert result.returncode == 0
-    assert "engine=Vosk-small-English|model-download=once" in result.stdout
+    assert "engine=Vosk-small-English|model-download=none|offline-install=true" in result.stdout
     assert result.stdout.endswith(hashlib.sha256((ROOT / "build" / "LocalDictation.exe").read_bytes()).hexdigest())
 
 
@@ -51,3 +51,16 @@ def test_setup_rejects_archive_path_traversal(tmp_path):
     result = subprocess.run([str(SETUP), "--test-extract", str(archive), str(tmp_path / "model"), "model"], capture_output=True, text=True)
     assert result.returncode == 2 and "invalid path" in result.stderr
     assert not (tmp_path.parent / "outside.txt").exists()
+
+
+def test_single_file_bundle_loads_its_own_offline_speech_engine(tmp_path):
+    result = subprocess.run([str(SETUP), "--test-bundle", str(tmp_path)], capture_output=True, text=True, timeout=90)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "bundle-ok|offline=true"
+    assert (tmp_path / "native/libvosk.dll").is_file()
+    assert (tmp_path / "model-small-en-us/am/final.mdl").is_file()
+    assert (tmp_path / "Uninstall.exe").stat().st_size < 200_000
+    result = subprocess.run([str(tmp_path / "LocalDictation.exe"), "--installed-speech-check"], capture_output=True, text=True, timeout=90)
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert result.stdout == "speech-ready|offline=true"
+    assert hashlib.sha256((ROOT / "dist/Notewll-Setup.exe").read_bytes()).digest() == hashlib.sha256(SETUP.read_bytes()).digest()

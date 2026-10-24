@@ -6,13 +6,13 @@
 
 Private voice typing, personal notes and meeting transcripts for Windows. Hold your shortcut to write, or capture microphone audio, computer output, or both into a local notebook.
 
-![Notewll: your voice, on your device](assets/notewll-banner.svg)
+![Notewll: your voice, your orbit](assets/showcase/notewll-0.9.0-hero.svg)
 
-[Get started](#get-started) | [Features](#three-ways-to-capture) | [How it works](#how-it-works) | [Privacy](#your-data-stays-on-your-device) | [User guide](USER_GUIDE.md) | [Project story](https://myhai.org/projects/dotflow/)
+[Download Windows installer](https://github.com/sudheer-050/notewll/releases/download/v0.9.0/Notewll-Setup-0.9.0.exe) | [Get started](#get-started) | [Features](#three-ways-to-capture) | [How it works](#how-it-works) | [Privacy](#your-data-stays-on-your-device) | [User guide](USER_GUIDE.md) | [Project story](https://myhai.org/projects/dotflow/)
 
 | Platform | Speech | Runtime | Current version |
 |---|---|---|---|
-| Windows 10/11 x64 | English, local Vosk | Native C# / .NET Framework 4.8 | 0.8.1 local candidate |
+| Windows 10/11 x64 | English, local Vosk | Native C# / .NET Framework 4.8 | 0.9.0 Windows preview |
 
 ## Why Notewll?
 
