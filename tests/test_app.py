@@ -159,7 +159,7 @@ def test_settings_window_builds_with_devices_cleanup_preview_and_startup_off():
 def test_desktop_hub_navigation_preferences_preview_and_close_to_tray():
     result = run("--hub-smoke")
     assert result.returncode == 0, result.stderr
-    assert result.stdout == "hub-ok|pages=5|preferences=applied|preview=working|close=tray"
+    assert result.stdout == "hub-ok|pages=7|preferences=applied|preview=working|close=tray"
 
 
 # --- state --------------------------------------------------------------------
@@ -306,3 +306,12 @@ def test_old_note_shortcut_migrates_to_single_dropdown_choice(tmp_path):
 def test_invalid_meeting_audio_is_rejected(tmp_path):
     result = run("--validate-config", write_config(tmp_path, MeetingSource="missing-device-mode"))
     assert result.returncode == 2 and "meeting audio" in result.stderr
+
+
+def test_ball_preferences_previews_and_saved_customization(tmp_path):
+    result = run("--ball-preferences-smoke", str(tmp_path))
+    assert result.returncode == 0, result.stderr
+    for feature in ("171-physics-combinations", "plain-color", "conditional-color-controls",
+                    "live-color-picker", "automatic-gravity-bounce", "independent-expanded-size",
+                    "scaled-icons", "local-image-copy", "image-save-reopen", "image-rotation"):
+        assert feature in result.stdout

@@ -57,7 +57,12 @@ namespace LocalDictation
         }
         public static async Task Check(IWin32Window owner, Config config)
         {
-            if (String.IsNullOrWhiteSpace(config.UpdateManifestUrl) || String.IsNullOrWhiteSpace(config.UpdatePublisherThumbprint)) { MessageBox.Show(owner, "A public HTTPS update feed and trusted signing certificate are not configured for this build. Add them in About when the publisher provides them.", "Updates unavailable"); return; }
+            if (String.IsNullOrWhiteSpace(config.UpdateManifestUrl) || String.IsNullOrWhiteSpace(config.UpdatePublisherThumbprint))
+            {
+                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "https://github.com/sudheer-050/notewll/releases", UseShellExecute = true }); }
+                catch (Exception ex) { MessageBox.Show(owner, "Could not open GitHub Releases: " + ex.Message, "Check for updates"); }
+                return;
+            }
             string target = null;
             try
             {

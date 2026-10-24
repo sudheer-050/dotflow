@@ -7,22 +7,42 @@ using System.Windows.Forms;
 
 namespace LocalDictation
 {
+    // Compose the scrolling viewport and its children in one Windows paint pass.
+    // Local double buffering alone does not cover native scrolling of child windows.
+    sealed class BufferedScrollPanel : Panel
+    {
+        public BufferedScrollPanel() { DoubleBuffered = true; ResizeRedraw = true; }
+        protected override CreateParams CreateParams
+        {
+            get { var parameters = base.CreateParams; parameters.ExStyle |= 0x02000000; return parameters; } // WS_EX_COMPOSITED
+        }
+        protected override void WndProc(ref Message message)
+        {
+            int kind = message.Msg;
+            base.WndProc(ref message);
+            if (kind == 0x0114 || kind == 0x0115 || kind == 0x020A || kind == 0x020E)
+                RepaintViewport(); // scrollbar and wheel messages, after Windows has moved the children
+        }
+        protected override void OnScroll(ScrollEventArgs e) { base.OnScroll(e); RepaintViewport(); }
+        void RepaintViewport() { Invalidate(true); Update(); }
+    }
+
     sealed class Surface : Panel
     {
         public Color Fill = ThemeColors.Card;
         public static Color CanvasColor(Control parent)
         {
             while (parent != null) { var surface = parent as Surface; if (surface != null) return surface.Fill; if (parent.BackColor.A == 255) return parent.BackColor; parent = parent.Parent; }
-            return Color.FromArgb(250, 249, 246);
+            return ThemeColors.Paper;
         }
-        public Surface() { DoubleBuffered = true; BackColor = Color.Transparent; }
-        protected override void OnPaintBackground(PaintEventArgs e) { e.Graphics.Clear(Surface.CanvasColor(Parent)); }
+        public Surface() { DoubleBuffered = true; ResizeRedraw = true; SetStyle(ControlStyles.Opaque, true); BackColor = ThemeColors.Paper; }
+        protected override void OnPaintBackground(PaintEventArgs e) { }
         protected override void OnPaint(PaintEventArgs e)
         {
-            base.OnPaint(e); OnPaintBackground(e); e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            base.OnPaint(e); e.Graphics.Clear(Surface.CanvasColor(Parent)); e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             using (var path = Shape(new RectangleF(0.5f, 0.5f, Width - 1, Height - 1), 18))
             using (var brush = new SolidBrush(Fill))
-            using (var pen = new Pen(ThemeColors.Dark ? Color.FromArgb(63, 69, 77) : Color.FromArgb(231, 228, 223)))
+            using (var pen = new Pen(ThemeColors.Border))
             { e.Graphics.FillPath(brush, path); e.Graphics.DrawPath(pen, path); }
         }
         public static GraphicsPath Shape(RectangleF r, float radius)
@@ -47,12 +67,12 @@ namespace LocalDictation
         {
             OnPaintBackground(e);
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            Color fill = SystemInformation.HighContrast ? (Primary || Selected ? SystemColors.Highlight : SystemColors.Control) : Primary ? Color.FromArgb(38, 41, 45) : Selected ? ThemeColors.Selected : ThemeColors.Button;
-            if (!SystemInformation.HighContrast && ClientRectangle.Contains(PointToClient(Cursor.Position))) fill = Primary ? Color.FromArgb(58, 63, 69) : ThemeColors.Dark ? Color.FromArgb(67, 73, 82) : Color.FromArgb(234, 230, 224);
+            Color fill = SystemInformation.HighContrast ? (Primary || Selected ? SystemColors.Highlight : SystemColors.Control) : Primary ? ThemeColors.Accent : Selected ? ThemeColors.Selected : ThemeColors.Button;
+            if (!SystemInformation.HighContrast && ClientRectangle.Contains(PointToClient(Cursor.Position))) fill = Primary ? ThemeColors.Accent : ThemeColors.Hover;
             using (var path = Surface.Shape(new RectangleF(0, 0, Width - 1, Height - 1), 9))
             using (var brush = new SolidBrush(fill)) e.Graphics.FillPath(brush, path);
             TextRenderer.DrawText(e.Graphics, Text, Font, ClientRectangle,
-                SystemInformation.HighContrast ? (Primary || Selected ? SystemColors.HighlightText : SystemColors.ControlText) : !Enabled ? ThemeColors.Muted : Primary ? Color.White : ThemeColors.Ink,
+                SystemInformation.HighContrast ? (Primary || Selected ? SystemColors.HighlightText : SystemColors.ControlText) : !Enabled ? ThemeColors.Muted : Primary ? ThemeColors.AccentInk : ThemeColors.Ink,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
             if (Focused) ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(ClientRectangle, -4, -4));
         }
@@ -67,9 +87,9 @@ namespace LocalDictation
         static Color Paper { get { return ThemeColors.Paper; } }
         Config source;
         readonly Panel host = new Panel { Dock = DockStyle.Fill, BackColor = Paper };
-        readonly Panel sidebar = new Panel { Dock = DockStyle.Left, Width = 194, BackColor = Color.FromArgb(242, 239, 233) };
-        readonly Panel[] pages = new Panel[5];
-        readonly HubButton[] navigation = new HubButton[5];
+        readonly Panel sidebar = new Panel { Name = "AppSidebar", Dock = DockStyle.Left, Width = 194, BackColor = ThemeColors.Sidebar };
+        readonly Panel[] pages = new Panel[8];
+        readonly HubButton[] navigation = new HubButton[8];
         readonly HubButton hotkey = new HubButton();
         readonly HubButton savePinned = new HubButton { Text = "Save preferences", Primary = true, Left = 18, Width = 158, Height = 38, Visible = false };
         readonly Label sidebarStatus = new Label { Left = 20, Width = 154, Height = 44, Visible = false, Font = new Font("Segoe UI", 8), ForeColor = Color.FromArgb(61, 115, 90), AutoEllipsis = true };
@@ -136,7 +156,7 @@ namespace LocalDictation
         public bool CloseToTray;
         public Action<Config> OnSaved;
         public Func<bool> CanTest;
-        public bool IsTesting { get { return testRecorder != null || transcribing || (notes != null && notes.Busy); } }
+        public bool IsTesting { get { return VoiceWordDialog.OpenCount > 0 || testRecorder != null || transcribing || (notes != null && notes.Busy); } }
         public Config Result { get; private set; }
         public string CurrentPage { get; private set; }
         public string Summary { get { return "mics=" + String.Join(";", mic.Items.Cast<object>().Select(i => i.ToString())) + "|selected=" + mic.SelectedItem + "|cleanup=" + cleanup.Checked + "|autoPaste=" + autoPaste.Checked + "|startup=" + startup.Checked + "|preview=" + cleaned.Text; } }
@@ -148,14 +168,15 @@ namespace LocalDictation
             Font = new Font("Segoe UI", 10); ClientSize = new Size(1080, 740); MinimumSize = new Size(960, 690);
             AutoScaleMode = AutoScaleMode.None; StartPosition = FormStartPosition.CenterScreen;
             Controls.Add(host); Controls.Add(sidebar);
+            sidebar.Paint += (s, e) => { using (var pen = new Pen(ThemeColors.Border)) e.Graphics.DrawLine(pen, sidebar.Width - 1, 0, sidebar.Width - 1, sidebar.Height); };
             Brand(sidebar); sidebar.Controls.Add(savePinned); sidebar.Controls.Add(sidebarStatus); savePinned.Click += (s, e) => SavePreferences();
-            string[] names = { "Home", "Playground", "Preferences", "Help", "Notes" };
+            string[] names = { "Home", "Playground", "Preferences", "Help", "Notes", "Dictionary", "Snippets", "Style" };
             for (int i = 0; i < names.Length; i++)
             {
                 int at = i;
-                navigation[i] = new HubButton { Text = names[i] == "Playground" ? "Practice" : names[i], Left = 18, Top = 140 + new[] { 0, 2, 3, 4, 1 }[i] * 48, Width = 158, Height = 40, AccessibleName = names[i] };
-                navigation[i].Click += (s, e) => ShowPage(names[at]); sidebar.Controls.Add(navigation[i]);
-                pages[i] = new Panel { Dock = DockStyle.Fill, BackColor = Paper, AutoScroll = true, Visible = false, Name = names[i] }; host.Controls.Add(pages[i]);
+                navigation[i] = new HubButton { Text = names[i] == "Playground" ? "Practice" : names[i], Left = 18, Top = 128 + new[] { 0, 0, 5, 6, 1, 2, 3, 4 }[i] * 40, Width = 158, Height = 34, AccessibleName = names[i] };
+                navigation[i].Click += (s, e) => ShowPage(names[at]); navigation[i].Visible = i != 1; sidebar.Controls.Add(navigation[i]);
+                pages[i] = new BufferedScrollPanel { Dock = DockStyle.Fill, BackColor = Paper, AutoScroll = true, Visible = false, Name = names[i] }; host.Controls.Add(pages[i]);
             }
             localFooter = Label(sidebar, "●  On your device", 20, 650, 160, 23, 9, false, Color.FromArgb(61, 115, 90));
             privacyFooter = Label(sidebar, "Private by design\nNotes saved locally", 20, 678, 165, 42, 9, false, Muted);
@@ -171,10 +192,10 @@ namespace LocalDictation
             if (!noteShortcut.Items.Contains(config.NotesHotkey)) noteShortcut.Items.Add(config.NotesHotkey); noteShortcut.SelectedItem = config.NotesHotkey;
             noteSource.Items.AddRange(new object[] { "My microphone", "Computer audio", "Microphone + computer" }); noteSource.SelectedIndex = Array.IndexOf(new[] { "Microphone", "Computer", "Both" }, config.NotesSource);
             meetingSource.Items.AddRange(new object[] { "My microphone", "Computer audio", "Microphone + computer" }); meetingSource.SelectedIndex = Array.IndexOf(new[] { "Microphone", "Computer", "Both" }, config.MeetingSource);
-            BuildHome(); BuildPlayground(); BuildPreferences(); BuildHelp();
-            Heading(pages[4], "Notes & meetings", "Your notes, recordings and original conversations.");
-            notes = new NotesPane(config, noteStore) { Left = 40, Top = 112, Width = 760, Height = 620 };
+            BuildHome(); BuildPlayground(); BuildPreferences(); BuildHelp(); BuildLibraryPage(5, "Word"); BuildLibraryPage(6, "Snippet"); BuildStylePage();
+            notes = new NotesPane(config, noteStore) { Left = 40, Top = 18, Width = 760, Height = 700 };
             notes.CanStart = () => testRecorder == null && !transcribing && !IsCapturingShortcut && (CanTest == null || CanTest()); pages[4].Controls.Add(notes);
+            notes.ClearHistory = ClearActivity;
             notes.SourceChanged = value => noteSource.SelectedIndex = Array.IndexOf(new[] { "Microphone", "Computer", "Both" }, value);
             var notesHandle = notes.Handle;
             raw.TextChanged += (s, e) => RefreshCleaned(); cleanup.CheckedChanged += (s, e) => RefreshCleaned();
@@ -192,6 +213,7 @@ namespace LocalDictation
             }
             foreach (var page in pages) page.Resize += (s, e) => LayoutPage((Panel)s);
             LayoutFooter(); ShowPage("Home"); ThemeColors.Apply(this, source.Theme); WireDirtyState();
+            Shown += (sender, args) => BeginInvoke((Action)(() => { LayoutFooter(); foreach (var page in pages) if (page.Visible) LayoutPage(page); }));
         }
 
         static Label Label(Control parent, string text, int x, int y, int w, int h, float size, bool bold, Color color)
@@ -222,45 +244,20 @@ namespace LocalDictation
         }
         void BuildHome()
         {
-            var p = pages[0]; Heading(p, "What would you like to capture?", "Private, offline speech and notes. Ready when you are.");
-            var actions = Card(p, 100, 116);
-            Label(actions, "Start with your voice", 24, 18, 600, 28, 15, true, Ink);
-            Button(actions, "Dictate", 24, 68, 166, (s, e) => { if (BeginDictation != null) BeginDictation(); else ShowPage("Playground"); }, true);
-            Button(actions, "New note", 210, 68, 166, (s, e) => { ShowPage("Notes"); notes.NewWrittenNote(); });
-            Button(actions, "Record meeting", 396, 68, 180, (s, e) => { ShowPage("Notes"); notes.Toggle(source.MeetingSource, "Meeting"); });
-            var readiness = Card(p, 230, 88);
-            homeShortcut.SetBounds(24, 18, 210, 26); readiness.Controls.Add(homeShortcut);
-            homeMicrophone.SetBounds(24, 55, 510, 26); readiness.Controls.Add(homeMicrophone);
-            var setup = Button(readiness, "Check setup", 584, 32, 140, (s, e) => FirstRunSetup());
-            readiness.Resize += (s, e) => homeMicrophone.Width = Math.Max(80, setup.Left - homeMicrophone.Left - (int)(20 * uiScale));
-            readinessStatus = Label(p, "Speech engine: checking availability...", 42, 328, 720, 28, 10, false, Muted);
-            var recent = Card(p, 368, 190); Label(recent, "Recent work", 24, 15, 500, 23, 11, true, Ink);
-            homeLatest.SetBounds(24, 46, 650, 38); homeLatest.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right; recent.Controls.Add(homeLatest);
-            recoverButton = Button(recent, "Recover unfinished speech", 24, 88, 228, (s, e) => { if (OpenRecovery != null) OpenRecovery(); });
-            issuesButton = Button(recent, "Issues & recovery", 270, 88, 190, (s, e) => ShowIssues());
-            recoverButton.Visible = false; issuesButton.Visible = issues.Length > 0; recentNotes.SetBounds(24, 132, 650, 48); recent.Controls.Add(recentNotes); recentNotes.DoubleClick += (s, e) => { var note = recentNotes.SelectedItem as NoteDocument; if (note != null) { ShowPage("Notes"); notes.SelectNote(note.Id); } };
+            var p = pages[0];
+            homeWelcome = Label(p, "Make room for more.", 40, 18, 730, 34, 18, true, Ink);
+            homeWelcomeDetail = Label(p, "Dictate into your apps and see how much time your voice gives back.", 42, 58, 730, 28, 9, false, Muted);
+            var actions = Card(p, 100, 120); homeActions = actions;
+            Label(actions, "What's on your mind?", 22, 10, 330, 28, 13, true, Ink);
+            homeShortcut.SetBounds(22, 40, 700, 26); homeShortcut.ForeColor = Muted; actions.Controls.Add(homeShortcut);
+            Button(actions, "Dictate", 22, 50, 166, (s, e) => { if (BeginDictation != null) BeginDictation(); else ShowPage("Playground"); }, true);
+            Button(actions, "New note", 204, 50, 166, (s, e) => { ShowPage("Notes"); notes.NewWrittenNote(); });
+            Button(actions, "Record meeting", 386, 50, 180, (s, e) => { ShowPage("Notes"); notes.Toggle(source.MeetingSource, "Meeting"); });
+            readinessStatus = Label(p, "Speech engine: checking availability...", 42, 232, 720, 24, 9, false, Muted);
+            BuildActivityHome(p);
             string detail; SetReadiness(SpeechEngine.Healthy(source, out detail) ? "Ready - English speech stays on this device." : detail);
         }
-        void BuildPlayground()
-        {
-            var p = pages[1]; Heading(p, "Practice dictation", "Record a sentence, review it, then try your shortcut in another app.");
-            var recording = Card(p, 142, 158);
-            Label(recording, "Say something. Make it yours.", 24, 20, 600, 29, 16, true, Ink);
-            Label(recording, "Click Record a sentence. Speak, then click Stop and review.", 24, 59, 680, 32, 10, false, Muted);
-            transcribe.SetBounds(24, 104, 152, 38); recording.Controls.Add(transcribe);
-            var cancelTest = Button(recording, "Cancel", 185, 104, 120, (s, e) => { StopTest(); sttStatus.Text = "Test canceled. No audio was saved."; });
-            Button(recording, "Advanced test...", 330, 104, 145, (s, e) => TestAudioFile());
-            var guidance = Label(recording, "", 490, 114, 210, 24, 9, false, Muted);
-            var preview = Card(p, 320, 282);
-            rawHeading = Label(preview, "YOUR SPEECH", 24, 22, 300, 24, 8, true, Muted);
-            cleanedHeading = Label(preview, "CLEANED RESULT", 388, 22, 300, 24, 8, true, Muted);
-            raw.SetBounds(24, 62, 325, 147); cleaned.SetBounds(388, 62, 325, 147); raw.BackColor = cleaned.BackColor = Color.White;
-            raw.AccessibleName = "Your speech"; cleaned.AccessibleName = "Cleaned result"; preview.Controls.Add(raw); preview.Controls.Add(cleaned);
-            copy.SetBounds(24, 224, 112, 36); preview.Controls.Add(copy);
-            Button(preview, "Clear", 150, 224, 90, (s, e) => UpdateTranscript("", "")); Button(preview, "Remember a correction", 260, 224, 240, (s, e) => RememberCorrection());
-            preview.Resize += (s, e) => LayoutTranscript(preview);
-            sttStatus.SetBounds(44, 625, 700, 55); sttStatus.ForeColor = Muted; sttStatus.Text = "Ready for your first sentence."; p.Controls.Add(sttStatus);
-        }
+        void BuildPlayground() { BuildHomePractice(); }
         void BuildPreferences() { BuildOrganizedPreferences(); }
         void BuildHelp()
         {
@@ -269,18 +266,24 @@ namespace LocalDictation
             Button(card, "Text is not appearing", 22, 20, 290, (s, e) => MessageBox.Show(this, "Click the target field first. Try the edge toolbar or your dictation key. For terminals, choose a paste method in Writing. Windows may block typing into an administrator window. Your recovered text is available from the system tray.", "Typing into another app"));
             Button(card, "No microphone sound", 22, 70, 290, (s, e) => { ShowPage("Preferences"); SelectSettingsCategory("Recording"); });
             Button(card, "No meeting audio", 22, 120, 290, (s, e) => { ShowPage("Notes"); notes.ShowRecordingHelp(); });
-            Button(card, "Recover a dictation", 22, 170, 290, (s, e) => { if (OpenRecovery != null) OpenRecovery(); });
+            recoverButton = Button(card, "Recover a dictation", 22, 170, 290, (s, e) => { if (OpenRecovery != null) OpenRecovery(); });
             Button(card, "Export a conversation", 22, 220, 290, (s, e) => MessageBox.Show(this, "Open a saved note and choose Export PDF. Select conversation, personal notes or the full record. Original conversation text stays read-only; external PDF copies are not tamper-proof.", "PDF export"));
             Button(card, "Storage and backup", 22, 270, 290, (s, e) => { if (notes != null && !notes.Busy) { NotesStorageDialog.Show(this, notes.Store, source); notes.ReloadLibrary(); } });
+            issuesButton = Button(p, "Issues & recovery", 40, 610, 220, (s, e) => ShowIssues()); issuesButton.Visible = issues.Length > 0;
             var tips = Card(p, 470, 120); Label(tips, "Your recording controls", 22, 14, 680, 24, 12, true, Ink);
             Label(tips, "Hover the edge bar for icons, then hover an icon for its name. Drag its grip to move.\nThe separate voice animation is optional in App preferences. Escape cancels dictation.\nFor meetings, use headphones and select the output device used by your call.", 22, 46, 690, 65, 9, false, Muted);
         }
         public void ShowPage(string name)
         {
+            bool openPractice = name == "Playground" || name == "Practice";
+            if (openPractice) name = "Home";
             for (int i = 0; i < pages.Length; i++) { bool active = pages[i].Name == name; pages[i].Visible = active; navigation[i].Selected = active; navigation[i].Invalidate(); if (active) pages[i].BringToFront(); }
             if (name == "Home" && notes != null) RefreshHome();
-            CurrentPage = name; savePinned.Visible = sidebarStatus.Visible = name == "Preferences";
+            if (name == "Notes" && notes != null && !notes.Busy) notes.ShowLibrary();
+            CurrentPage = name; savePinned.Visible = sidebarStatus.Visible = (name == "Preferences" || name == "Dictionary" || name == "Snippets" || name == "Style");
+            if (refreshLibrary != null) refreshLibrary();
             host.PerformLayout(); foreach (var page in pages) if (page.Visible) { page.AutoScrollPosition = Point.Empty; LayoutPage(page); }
+            if (openPractice) SetHomePractice(true, true);
         }
         void LayoutFooter()
         {
@@ -297,13 +300,17 @@ namespace LocalDictation
         }
         void LayoutPage(Panel page)
         {
+            var scrollPosition = page.AutoScrollPosition;
+            page.SuspendLayout();
+            try
+            {
             foreach (Control control in page.Controls)
             {
                 if (!(control.Tag is Rectangle)) continue;
                 var bounds = (Rectangle)control.Tag;
                 int left = (int)(bounds.Left * uiScale), width = (int)(bounds.Width * uiScale);
                 if (control is Label) width = Math.Min(width, page.ClientSize.Width - left - (int)(40 * uiScale));
-                control.SetBounds(left + page.AutoScrollPosition.X, (int)(bounds.Top * uiScale) + page.AutoScrollPosition.Y, Math.Max(1, width), (int)(bounds.Height * uiScale));
+                control.SetBounds(left + scrollPosition.X, (int)(bounds.Top * uiScale) + scrollPosition.Y, Math.Max(1, width), (int)(bounds.Height * uiScale));
             }
             foreach (var card in page.Controls.OfType<Surface>())
             {
@@ -311,9 +318,12 @@ namespace LocalDictation
                 foreach (var button in card.Controls.OfType<HubButton>().Where(b => (b.Anchor & AnchorStyles.Right) != 0)) button.Left = card.Width - button.Width - (int)(24 * uiScale);
                 foreach (var child in card.Controls.OfType<Surface>()) child.Left = card.Width - child.Width - (int)(34 * uiScale);
             }
+            if (page == pages[0]) { LayoutActivity(); LayoutHomePractice(); }
             if (page == pages[4] && notes != null) { page.AutoScroll = false; notes.Width = Math.Max((int)(600 * uiScale), page.ClientSize.Width - (int)(80 * uiScale)); notes.Height = Math.Max((int)(410 * uiScale), page.ClientSize.Height - notes.Top - (int)(24 * uiScale)); }
-            if (page == pages[1] && raw.Parent != null) LayoutTranscript((Surface)raw.Parent);
+            if (page == pages[0] && raw.Parent != null) LayoutTranscript((Surface)raw.Parent);
             if (page == pages[2] && settingsTabs != null) settingsTabs.SetBounds((int)(40 * uiScale), (int)(112 * uiScale), page.ClientSize.Width - (int)(80 * uiScale), page.ClientSize.Height - (int)(136 * uiScale));
+            }
+            finally { page.ResumeLayout(); page.Invalidate(true); }
         }
 
         public void UpdateLiveTranscript(string text) { raw.Text = text ?? ""; cleaned.Text = text ?? ""; homeLatest.Text = text ?? ""; }
@@ -321,11 +331,11 @@ namespace LocalDictation
         {
             raw.Text = text ?? ""; RefreshCleaned();
             if (!String.IsNullOrEmpty(result)) { cleaned.Text = result; copy.Enabled = cleaned.Text.Length > 0; }
-            homeLatest.Parent.Visible = true;
+            if (homeLatest.Parent != null) homeLatest.Parent.Visible = true;
             homeLatest.Text = String.IsNullOrWhiteSpace(cleaned.Text) ? "Recent notes open with a double-click. Dictation audio is not stored." : cleaned.Text;
         }
         void RefreshCleaned() { var draft = source.Copy(); draft.CleanupEnabled = cleanup.Checked; draft.WritingStyle = writingStyle.SelectedItem == null ? source.WritingStyle : writingStyle.Text; draft.Personalization = pendingRules ?? source.Personalization; cleaned.Text = WritingFormat.Compose(draft, raw.Text); copy.Enabled = cleaned.Text.Length > 0; copy.Text = "Copy text"; }
-        void RefreshHome() { if (notes != null) { recentNotes.Items.Clear(); foreach (var note in notes.RecentEntries.Take(3)) recentNotes.Items.Add(note); }  homeShortcut.Text = source.Hotkey.Replace("+", " + "); homeShortcut.Text = "Hold " + source.Hotkey.Replace("+", " + ") + " to dictate"; homeShortcut.Font = new Font("Segoe UI", 10, FontStyle.Bold); homeMicrophone.Text = source.Microphone == Config.DefaultMic ? "Windows default microphone" : source.Microphone; }
+        void RefreshHome() { RefreshActivity(); homeShortcut.Text = "Hold " + source.Hotkey.Replace("+", " + ") + " to dictate"; homeShortcut.Font = new Font("Segoe UI", 10, FontStyle.Italic); homeMicrophone.Text = source.Microphone == Config.DefaultMic ? "Windows default microphone" : source.Microphone; }
         public void SavePreferences()
         {
             try
@@ -337,7 +347,10 @@ namespace LocalDictation
                 Result.PasteMethod = new[] { "Auto", "CtrlV", "CtrlShiftV", "ShiftInsert" }[pasteMethod.SelectedIndex]; Result.StartWithWindows = startup.Checked;
                 Result.UpdateManifestUrl = updateUrl.Text.Trim(); Result.UpdatePublisherThumbprint = updatePublisher.Text.Replace(" ", "").Trim();
                 Result.CheckUpdatesOnStart = updateOnStart.Checked; Result.WritingStyle = writingStyle.Text;
-                Result.Personalization = pendingRules; Result.Theme = Convert.ToString(themeChoice.SelectedItem); Result.ShowToolbar = toolbarChoice.Checked; Result.ShowVoiceIndicator = indicatorChoice.Checked; Result.ReducedMotion = motionChoice.Checked; Result.ReduceNoise = noiseChoice.Checked;
+                Result.Personalization = pendingRules; Result.Theme = "System"; Result.ShowToolbar = toolbarChoice.Checked; Result.ShowVoiceIndicator = indicatorChoice.Checked; Result.ReducedMotion = motionChoice.Checked; Result.ReduceNoise = noiseChoice.Checked;
+                var ballDraft=BallDraft(); Result.BallAppearance=ballDraft.BallAppearance; Result.BallGravity=ballDraft.BallGravity;
+                Result.BallColorMode=ballDraft.BallColorMode; Result.BallColor1=ballDraft.BallColor1; Result.BallColor2=ballDraft.BallColor2; Result.BallGradientAngle=ballDraft.BallGradientAngle;
+                Result.BallSizePercent=ballDraft.BallSizePercent; Result.BallExpandedSizePercent=ballDraft.BallExpandedSizePercent; Result.BallImagePath=ballDraft.BallImagePath;
                 Result.Validate(); string warning = Shortcut.Warning(Result.Hotkey, Result.NotesHotkey); if (warning != null && MessageBox.Show(this, warning + "\nSave this shortcut anyway?", "Shortcut warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return; if (OnSaved != null) OnSaved(Result); source = Result; dirty = false; savePinned.Text = "Save preferences"; ThemeColors.Apply(this, source.Theme); if (notes != null) notes.UpdateConfig(Result); RefreshHome(); saved.Text = "Saved. Your next dictation uses these preferences.";
             }
             catch (Exception ex) { saved.Text = "Could not save: " + ex.Message; }

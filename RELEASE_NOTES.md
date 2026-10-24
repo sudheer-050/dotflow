@@ -1,3 +1,11 @@
+# Floating ball customization - source update
+
+This source update adds a click-to-open floating ball, an animated half-circle menu, black icons on 50%-opacity white round tiles, and gravity-driven throw/bounce/settling behavior. No fire or trail effects remain.
+
+Preferences > Ball adds 19 appearances, nine gravity environments, live solid-color and gradient pickers, automatic bounce samples, separate closed/expanded percentage sizes, and local image overlays that rotate with the surface. Existing configurations retain moon/Earth/default-size settings.
+
+Focused checks cover all 171 appearance/gravity combinations, saved preferences, custom colors, independent expanded sizes and icons, local image copying/removal/rotation, click behavior, screen-edge positioning and reduced motion. Publishing source does not publish a new installer or satisfy the separate speech-accuracy release gate described below.
+
 # Notewll 0.8.1 - local accuracy candidate
 
 Local review build; not published. Optional accurate dictation uses a persistent CPU Parakeet recognizer and Silero speech detection. Recognition starts while you speak. Shortcut formatting no longer waits for a separate grammar model. Accurate dictation and enhanced meeting notes have independent preferences; existing notes and originals are preserved.

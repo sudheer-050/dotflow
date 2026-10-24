@@ -16,7 +16,7 @@ namespace LocalDictation
         readonly RichTextBox transcript = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, DetectUrls = false, BorderStyle = BorderStyle.None, WordWrap = true, AccessibleName = "Original conversation" };
         Panel recordingPanel; TableLayoutPanel newRecordingActions, captureTransport;
         readonly ComboBox mode = Choice(), microphone = Choice(), output = Choice();
-        readonly TabControl tabs = new AppTabs { Dock = DockStyle.Fill };
+        readonly AppTabs tabs = new AppTabs { Dock = DockStyle.Fill };
         readonly ListBox history = new ListBox { Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, IntegralHeight = false };
         readonly HubButton record = new HubButton { Text = "Start note", Primary = true, Dock = DockStyle.Fill };
         readonly HubButton retry = new HubButton { Text = "Retry transcription", Dock = DockStyle.Fill };
@@ -34,6 +34,7 @@ namespace LocalDictation
         readonly Label noteDetails = new Label { Dock = DockStyle.Fill, ForeColor = Color.FromArgb(115, 116, 118), TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
         readonly HubButton devicesButton = new HubButton { Text = "Devices", Dock = DockStyle.Fill };
         readonly HubButton editDetails = new HubButton { Text = "Edit details", Dock = DockStyle.Fill };
+        public Action ClearHistory;
         public Action<string> SourceChanged;
         string preferredSource;
         public string Source { get { return preferredSource; } }
@@ -59,21 +60,21 @@ namespace LocalDictation
         {
             this.config = config; preferredSource = config.NotesSource; this.store = store ?? new NoteStore(); this.store.CleanupDeleted(config.DeletedRetentionDays); documents = this.store.List();
             BackColor = Color.FromArgb(250, 249, 246); Font = new Font("Segoe UI", 10); AutoScaleMode = AutoScaleMode.None;
-            var layout = new SplitContainer { Size = new Size(760, 600), Dock = DockStyle.Fill, Panel1MinSize = 140, Panel2MinSize = 300, SplitterDistance = 190, BackColor = BackColor }; Controls.Add(layout);
-            var library = Grid(1, 4); library.BackColor = BackColor; library.Padding = new Padding(0, 0, 16, 0); library.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            var layout = new Panel { Dock = DockStyle.Fill, BackColor = ThemeColors.Paper }; Controls.Add(layout); editorHost = layout;
+            var library = Grid(1, 4); library.BackColor = BackColor; library.Padding = new Padding(0, 0, 12, 0); library.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             library.RowStyles.Add(new RowStyle(SizeType.Absolute, 28)); library.RowStyles.Add(new RowStyle(SizeType.Absolute, 34)); library.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); library.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
             library.Controls.Add(Caption("Search saved notes"), 0, 0);
             var search = Field("Search saved notes"); library.Controls.Add(search, 0, 1); library.Controls.Add(history, 0, 2);
-            var fresh = new HubButton { Text = "+ Written note", Dock = DockStyle.Fill }; library.Controls.Add(fresh, 0, 3); layout.Panel1.Controls.Add(library);
-            var sheet = new Surface { Dock = DockStyle.Fill, Padding = new Padding(18), Fill = Color.White }; layout.Panel2.Controls.Add(sheet);
+            var fresh = new HubButton { Text = "+ New", Dock = DockStyle.Fill }; library.Controls.Add(fresh, 0, 3); library.Visible = false; Controls.Add(library);
+            var sheet = new Surface { Dock = DockStyle.Fill, Padding = new Padding(18), Fill = Color.White }; layout.Controls.Add(sheet); reviewSheet = sheet;
             var workspace = Grid(1, 6); workspace.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 48)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 30)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 44)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 30)); workspace.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 40)); sheet.Controls.Add(workspace);
+            workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 40)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 30)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 44)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 30)); workspace.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); workspace.RowStyles.Add(new RowStyle(SizeType.Absolute, 40)); sheet.Controls.Add(workspace);
             var heading = Grid(2, 1); heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 106)); heading.Controls.Add(noteTitle, 0, 0); heading.Controls.Add(editDetails, 1, 0); workspace.Controls.Add(heading, 0, 0); workspace.Controls.Add(noteDetails, 0, 1);
             var transport = Grid(4, 1); captureTransport = transport; transport.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100)); transport.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); transport.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70)); transport.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
             transport.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            transport.Controls.Add(record, 0, 0); var nextCapture = new Panel { Dock = DockStyle.Fill }; nextCapture.Controls.Add(mode); mode.Dock = DockStyle.Bottom; nextCapture.Controls.Add(new Label { Text = "Next recording", Dock = DockStyle.Top, Height = 16, Font = new Font("Segoe UI", 7), ForeColor = ThemeColors.Muted }); transport.Controls.Add(nextCapture, 1, 0); var devices = devicesButton; transport.Controls.Add(devices, 2, 0); transport.Controls.Add(pauseNote, 3, 0); recordingPanel = new Panel { Dock = DockStyle.Fill }; recordingPanel.Controls.Add(transport); newRecordingActions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 }; newRecordingActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); newRecordingActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); var personal = new HubButton { Text = "Record a personal note", Dock = DockStyle.Fill }; var meetingButton = new HubButton { Text = "Record a meeting", Dock = DockStyle.Fill }; personal.Click += (s, e) => Toggle(preferredSource, "Note"); meetingButton.Click += (s, e) => Toggle(config.MeetingSource, "Meeting"); newRecordingActions.Controls.Add(personal); newRecordingActions.Controls.Add(meetingButton); recordingPanel.Controls.Add(newRecordingActions); workspace.Controls.Add(recordingPanel, 0, 2);
+            transport.Controls.Add(record, 0, 0); var nextCapture = new Panel { Dock = DockStyle.Fill }; nextCapture.Controls.Add(mode); mode.Dock = DockStyle.Fill; transport.Controls.Add(nextCapture, 1, 0); var devices = devicesButton; transport.Controls.Add(devices, 2, 0); transport.Controls.Add(pauseNote, 3, 0); recordingPanel = new Panel { Dock = DockStyle.Fill }; recordingPanel.Controls.Add(transport); newRecordingActions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 }; newRecordingActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); newRecordingActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); var personal = new HubButton { Text = "Record note", Dock = DockStyle.Fill }; var meetingButton = new HubButton { Text = "Record meeting", Dock = DockStyle.Fill }; personal.Click += (s, e) => Toggle(preferredSource, "Note"); meetingButton.Click += (s, e) => Toggle(config.MeetingSource, "Meeting"); newRecordingActions.Controls.Add(personal); newRecordingActions.Controls.Add(meetingButton); recordingPanel.Controls.Add(newRecordingActions); workspace.Controls.Add(recordingPanel, 0, 2);
             workspace.Controls.Add(status, 0, 3);
-            var noteTab = new TabPage("My notes"); var transcriptTab = new TabPage("Conversation (read-only)"); tabs.TabPages.Add(noteTab); tabs.TabPages.Add(transcriptTab);
+            var noteTab = new TabPage("My notes"); var transcriptTab = new TabPage("Conversation"); tabs.TabPages.Add(noteTab); tabs.TabPages.Add(transcriptTab);
             written.Multiline = true; written.AcceptsReturn = written.AcceptsTab = true; written.ScrollBars = ScrollBars.Vertical; transcript.ScrollBars = RichTextBoxScrollBars.Vertical; transcript.ReadOnly = true;
             written.BorderStyle = transcript.BorderStyle = BorderStyle.None; written.BackColor = transcript.BackColor = Color.White;
             noteTab.Padding = transcriptTab.Padding = new Padding(12); noteTab.Controls.Add(written); transcriptTab.Controls.Add(transcript); workspace.Controls.Add(tabs, 0, 4);
@@ -95,17 +96,26 @@ namespace LocalDictation
             history.SelectedIndexChanged += (s, e) => { if (!populating) Select(history.SelectedItem as NoteDocument); };
             foreach (var document in documents) history.Items.Add(document);
             record.Click += (s, e) => { if (Recording) Stop(); else Start(SelectedMode(), "Note"); };
-            retry.Click += (s, e) => Retry(); fresh.Click += (s, e) => NewWrittenNote();
+            retry.Click += (s, e) => Retry(); fresh.Click += (s, e) => ShowNewNoteMenu(fresh);
             copy.Click += (s, e) => { try { if (selected != null) Clipboard.SetText(tabs.SelectedIndex == 0 ? written.Text : tabs.SelectedIndex == 2 ? excerptText.Text : NoteStore.Transcript(selected)); } catch (Exception ex) { status.Text = ex.Message; } };
             mode.SelectedIndexChanged += (s, e) => { RefreshState(); if (!populating) { preferredSource = SelectedMode(); if (SourceChanged != null) SourceChanged(preferredSource); } };
             title.TextChanged += Edited; name.TextChanged += Edited; written.TextChanged += Edited;
             saveTimer.Tick += (s, e) => { saveTimer.Stop(); SaveEdits(); };
             pulse.Tick += (s, e) => RefreshState(); pulse.Start();
             BuildReviewTools(library, workspace, noteTab, transcriptTab, search, copy, folder);
+            BuildNotesBrowser(search);
             Select(null);
         }
+        void ShowNewNoteMenu(Control anchor)
+        {
+            var menu = DialogUi.PopupMenu();
+            menu.Items.Add("Write a note", null, (s, e) => NewWrittenNote());
+            var note = menu.Items.Add("Record a personal note", null, (s, e) => Toggle(preferredSource, "Note")); note.Enabled = !Busy;
+            var meeting = menu.Items.Add("Record a meeting", null, (s, e) => Toggle(config.MeetingSource, "Meeting")); meeting.Enabled = !Busy;
+            menu.Show(anchor, new Point(0, anchor.Height));
+        }
         string SelectedMode() { return mode.SelectedIndex == 1 ? "Computer" : mode.SelectedIndex == 2 ? "Both" : "Microphone"; }
-        void Edited(object sender, EventArgs e) { if (!populating) { saveTimer.Stop(); saveTimer.Start(); } }
+        void Edited(object sender, EventArgs e) { if (!populating) { if (personalSaveState != null) personalSaveState.Text = "Saving..."; saveTimer.Stop(); saveTimer.Start(); } }
         void SaveEdits()
         {
             if (populating) return;
@@ -113,7 +123,7 @@ namespace LocalDictation
             {
             if (selected == null)
             {
-                if (String.IsNullOrWhiteSpace(written.Text)) return;
+                if (String.IsNullOrWhiteSpace(written.Text) && String.IsNullOrWhiteSpace(title.Text)) return;
                 selected = store.Create(title.Text, SelectedMode(), name.Text); selected.Status = "Saved"; selected.Kind = "Note";
                 documents.Insert(0, selected); populating = true; history.Items.Insert(0, selected); history.SelectedItem = selected; populating = false;
             }
@@ -122,16 +132,23 @@ namespace LocalDictation
                     selected.WrittenNotes = written.Text; NoteMetadata.UpdateTitle(selected);
                     store.Save(selected); store.SavedName = selected.UserName;
                 }
+                RefreshPersonalSaveState();
                 int index = history.Items.IndexOf(selected); if (index >= 0) { populating = true; history.Items[index] = selected; populating = false; }
             }
-            catch (Exception ex) { uiError = "Could not save note: " + ex.Message; status.Text = uiError; }
+            catch (Exception ex) { uiError = "Could not save note: " + ex.Message; status.Text = uiError; if (personalSaveState != null) personalSaveState.Text = uiError; }
         }
         void Select(NoteDocument document)
         {
             if (populating) return;
             SaveEdits(); player.Dispose(); playerOpen = false; uiError = ""; selected = document; if (document != null) writingFresh = false; populating = true;
             title.Text = document == null ? "" : document.Title; name.Text = document == null ? store.SavedName : document.UserName;
+            if (document != null && ActivityHistory.Kind(document) == "Note" && !document.EditableTextInitialized)
+            {
+                if (String.IsNullOrWhiteSpace(document.WrittenNotes)) document.WrittenNotes = String.Join(Environment.NewLine + Environment.NewLine, document.Segments.Where(segment => segment.Complete && String.IsNullOrEmpty(segment.Error)).Select(segment => segment.Text ?? segment.RawText));
+                document.EditableTextInitialized = true;
+            }
             written.Text = document == null ? "" : document.WrittenNotes; DisplayConversation(document == null ? "" : NoteStore.Transcript(document)); LoadAudioSources(document);
+            if (personalTitle != null) personalTitle.Text = document == null ? "" : document.Title;
             history.SelectedItem = document; excerptText.Text = document == null ? "" : document.Summary; populating = false; RefreshState();
         }
         public void UpdateConfig(Config value) { config = value; preferredSource = value.NotesSource; if (!Busy) { populating = true; mode.SelectedIndex = Array.IndexOf(new[] { "Microphone", "Computer", "Both" }, value.NotesSource); populating = false; } }
@@ -145,7 +162,7 @@ namespace LocalDictation
         void Start(string source, string kind)
         {
             if (Busy || (CanStart != null && !CanStart())) { status.Text = "Finish the current dictation first."; return; }
-            SaveEdits(); uiError = "";
+            browsingNotes = false; ApplyNotesView(); SaveEdits(); uiError = "";
             if (microphone.SelectedItem == null && source != "Computer" || output.SelectedItem == null && source != "Microphone") { uiError = "No selected audio device is available."; status.Text = uiError; return; }
             try
             {
@@ -192,7 +209,7 @@ namespace LocalDictation
             mode.Enabled = microphone.Enabled = output.Enabled = !busy; history.Enabled = true;
             if (!busy) { microphone.Enabled = mode.SelectedIndex != 1; output.Enabled = mode.SelectedIndex != 0; }
             pauseNote.Enabled = recording; pauseNote.Text = session != null && session.Paused ? "Resume" : "Pause";
-            devicesButton.Enabled = !busy; editDetails.Enabled = selected != null && !Recording;
+            devicesButton.Enabled = !busy; editDetails.Visible = selected != null; editDetails.Enabled = selected != null && !Recording;
             retry.Enabled = !busy && selected != null && selected.Segments.Any(s => !s.Complete || !String.IsNullOrEmpty(s.Error));
             if (selected != null)
             {
@@ -204,7 +221,9 @@ namespace LocalDictation
             noteTitle.Text = selected == null ? "Ready when you are." : selected.Title;
             noteDetails.Text = selected == null ? "Titles and names fill in automatically. Edit details later." :
                 (selected.Kind ?? "Note") + " \u00b7 " + DateTime.Parse(selected.CreatedUtc).ToLocalTime().ToString("MMM d - h:mm tt") + " | " + (String.IsNullOrWhiteSpace(selected.UserName) ? "Name from your introduction" : selected.UserName) + (selected.Participants.Count > 0 ? " | " + String.Join(", ", selected.Participants) : "");
-            if (selected != null) noteDetails.Text += " | Recorded: " + selected.Mode;
+            if (selected != null && selected.Segments.Count > 0) noteDetails.Text += " | " + selected.Mode + " audio";
+            recordingPanel.Visible = busy;
+            using (var graphics = CreateGraphics()) reviewWorkspace.RowStyles[2].Height = busy ? 44 * graphics.DpiX / 96f : 0;
             UpdateReviewState();
             if (!String.IsNullOrWhiteSpace(uiError)) status.Text = uiError;
             string issue = !String.IsNullOrWhiteSpace(uiError) ? uiError : selected == null ? "" : selected.CaptureError;
@@ -261,7 +280,8 @@ namespace LocalDictation
         }
         void ShowFilesMenu(Control anchor)
         {
-            var menu = new ContextMenuStrip();
+            var menu = DialogUi.PopupMenu();
+            var retryItem = menu.Items.Add("Retry missing transcription", null, (s, e) => Retry()); retryItem.Enabled = retry.Enabled;
             var speakers = menu.Items.Add("Correct speaker labels..."); speakers.Enabled = selected != null && !(Busy && ReferenceEquals(selected, session.Document)); speakers.Click += (s, e) => EditSpeakerLabels();
             var resume = menu.Items.Add("Resume this recording"); resume.Enabled = selected != null && selected.Segments.Count > 0 && !Busy; resume.Click += (s, e) => ResumeSelected();
             var storageItem = menu.Items.Add("Recently deleted & storage", null, (s, e) => { if (!Busy) { NotesStorageDialog.Show(FindForm(), store, config); ReloadLibrary(); } });
@@ -289,13 +309,14 @@ namespace LocalDictation
             delete.Click += (s, e) => DeleteSelected();
             foreach (var item in new ToolStripItem[] { speakers, resume, storageItem, open, audio, folderItem, export, delete }) menu.Items.Remove(item);
             foreach (var separator in menu.Items.OfType<ToolStripSeparator>().ToArray()) { menu.Items.Remove(separator); separator.Dispose(); }
-            var review = new ToolStripMenuItem("Review"); review.DropDownItems.Add(open); review.DropDownItems.Add(speakers);
+            var review = new ToolStripMenuItem("Review"); review.DropDownItems.Add(open); review.DropDownItems.Add(speakers); menu.Items.Remove(retryItem); review.DropDownItems.Add(retryItem);
             var recordings = new ToolStripMenuItem("Recording"); recordings.DropDownItems.Add(resume); recordings.DropDownItems.Add(audio);
             var chooseDevices = recordings.DropDownItems.Add("Choose recording devices...", null, (s, e) => ShowDevices()); chooseDevices.Enabled = !Busy;
             recordings.DropDownItems.Add("Check meeting audio", null, (s, e) => ShowRecordingHelp());
             var manage = new ToolStripMenuItem("Manage"); manage.DropDownItems.Add(folderItem); manage.DropDownItems.Add(storageItem); manage.DropDownItems.Add(new ToolStripSeparator()); manage.DropDownItems.Add(delete);
+            var clearHistory = manage.DropDownItems.Add("Clear history...", null, (s, e) => { if (ClearHistory != null) ClearHistory(); }); clearHistory.Enabled = !Busy && ClearHistory != null;
             menu.Items.Add(review); menu.Items.Add(recordings); menu.Items.Add(export); menu.Items.Add(manage);
-            menu.Closed += (s, e) => menu.Dispose(); menu.Show(anchor, new Point(0, anchor.Height));
+            menu.Show(anchor, new Point(0, anchor.Height));
         }
         void DeleteSelected()
         {

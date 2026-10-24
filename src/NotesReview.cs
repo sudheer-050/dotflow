@@ -52,31 +52,42 @@ namespace LocalDictation
         internal System.Collections.Generic.IEnumerable<NoteDocument> RecentEntries { get { return documents.OrderByDescending(n => n.CreatedUtc).ToArray(); } }
         internal int VisibleNotes { get { return history.Items.Count; } }
         internal void SearchFor(string query) { librarySearch.Text = query; }
-        internal void SelectNote(string id) { Select(documents.FirstOrDefault(n => n.Id == id)); }
+        internal void SelectNote(string id) { browsingNotes = false; Select(documents.FirstOrDefault(n => n.Id == id)); }
         internal void VerifyReviewLayout()
         {
             if (selected == null || written.Text != selected.WrittenNotes || transcript.Text.Replace("\r", "") != NoteStore.Transcript(selected).Replace("\r", "") || !transcript.ReadOnly) throw new InvalidOperationException("Review fields lost content or read-only state.");
-            if (!written.Visible || record.Bottom > record.Parent.ClientSize.Height || mode.Bottom > mode.Parent.ClientSize.Height || record.Height < 20 || mode.Height < 18) throw new InvalidOperationException("Review controls are clipped or hidden.");
+            if (!written.Visible || tabs.Height < 100 || Recording && (record.Bottom > record.Parent.ClientSize.Height || mode.Bottom > mode.Parent.ClientSize.Height || record.Height < 20 || mode.Height < 18)) throw new InvalidOperationException("Review controls are clipped or hidden.");
         }
-        public void NewWrittenNote() { writingFresh = true; Select(null); tabs.SelectedIndex = 0; written.Focus(); }
+        public void NewWrittenNote() { browsingNotes = false; writingFresh = true; Select(null); tabs.SelectedIndex = 0; written.Focus(); }
         static void SelectEndpoint(ComboBox box, string id)
         {
             for (int i = 0; i < box.Items.Count; i++) if (((AudioEndpoint)box.Items[i]).Id == id) { box.SelectedIndex = i; return; }
         }
+        internal void PrepareHistoryDelete()
+        {
+            SaveEdits(); saveTimer.Stop(); player.Dispose();
+            populating = true; selected = null; written.Clear(); title.Clear(); DisplayConversation(""); populating = false;
+        }
         public void ReloadLibrary()
         {
-            if (Busy) return; SaveEdits(); documents.Clear(); documents.AddRange(store.List()); selected = null; Refilter(); Select(documents.FirstOrDefault());
+            if (Busy) return;
+            SaveEdits(); string selectedId = selected == null ? null : selected.Id;
+            documents.Clear(); documents.AddRange(store.List());
+            // Clear the old editor before clearing selection so refiltering cannot save it as a new note.
+            populating = true; selected = null; written.Clear(); title.Clear(); populating = false;
+            Refilter(); Select(documents.FirstOrDefault(note => note.Id == selectedId) ?? documents.FirstOrDefault());
         }
         void Refilter()
         {
             SaveEdits(); populating = true; history.Items.Clear();
             foreach (var note in Sorted(documents, config.NotesSort))
             {
+                if (browserKind > 0 && ActivityHistory.Kind(note) != new[] { "", "Dictation", "Note", "Meeting" }[browserKind]) continue;
                 if (filter.SelectedIndex == 1 && note.Kind == "Meeting" || filter.SelectedIndex == 2 && note.Kind != "Meeting") continue;
                 string searchable; lock (note) searchable = note.Title + " " + note.UserName + " " + note.Kind + " " + note.WrittenNotes + " " + note.Tags + " " + String.Join(" ", note.Participants) + " " + NoteStore.Transcript(note);
                 if (searchable.IndexOf(libraryQuery, StringComparison.OrdinalIgnoreCase) >= 0) history.Items.Add(note);
             }
-            history.SelectedItem = selected; populating = false;
+            history.SelectedItem = selected; populating = false; RenderNotesBrowser();
         }
         internal static System.Collections.Generic.IEnumerable<NoteDocument> Sorted(System.Collections.Generic.IEnumerable<NoteDocument> notes, string order)
         {
@@ -112,38 +123,46 @@ namespace LocalDictation
                 e.DrawFocusRectangle();
             };
             pauseNote.Click += (s, e) => { if (session != null) session.TogglePause(); RefreshState(); };
-            var find = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true };
-            var next = new Button { Text = "Find next", AutoSize = true }; find.Controls.Add(new Label { Text = "Find text", AutoSize = true, Padding = new Padding(0, 5, 0, 0) }); find.Controls.Add(findText); find.Controls.Add(next);
+            var conversation = Grid(1, 3); conversation.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            conversation.RowStyles.Add(new RowStyle(SizeType.Absolute, 38)); conversation.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); conversation.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
+            transcriptTab.Controls.Remove(transcript); transcriptTab.Controls.Add(conversation);
+            var find = Grid(3, 1); find.Padding = new Padding(0, 0, 0, 6);
+            find.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); find.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 78)); find.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
+            findText.Dock = DockStyle.Fill; findText.AccessibleName = "Search conversation";
+            var next = new HubButton { Text = "Find next", Dock = DockStyle.Fill };
+            var speakersButton = new HubButton { Text = "Speakers", Dock = DockStyle.Fill }; speakersButton.Click += (s, e) => EditSpeakerLabels();
+            find.Controls.Add(findText, 0, 0); find.Controls.Add(next, 1, 0); find.Controls.Add(speakersButton, 2, 0);
+            reviewHints.SetToolTip(findText, "Search this conversation (Ctrl+F)"); reviewHints.SetToolTip(speakersButton, "Edit speaker labels and voice samples");
             next.Click += (s, e) => FindNext(); findText.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; FindNext(); } };
-            find.Controls.Add(DialogUi.Button("Speakers and voice samples", (s, e) => EditSpeakerLabels()));
-            transcriptTab.Controls.Add(find); find.BringToFront();
+            conversation.Controls.Add(find, 0, 0); conversation.Controls.Add(transcript, 0, 1);
             transcript.DoubleClick += (s, e) =>
             {
                 int line = transcript.GetLineFromCharIndex(transcript.SelectionStart);
                 for (int i = Math.Min(line, transcript.Lines.Length - 1); i >= 0; i--)
                 { var match = Regex.Match(transcript.Lines[i], @"^\[(\d+:\d+:\d+)\]"); TimeSpan time; if (match.Success && TimeSpan.TryParse(match.Groups[1].Value, out time)) { var segment = selected.Segments.Where(x => x.Complete && String.IsNullOrEmpty(x.Error) && !String.IsNullOrWhiteSpace(x.RawText ?? x.Text)).OrderBy(x => x.StartFrame).ThenBy(x => x.Source).FirstOrDefault(x => (int)((x.TranscriptStartFrame ?? x.StartFrame) / 16000) == (int)time.TotalSeconds && transcript.Lines[i].Contains(NoteStore.Speaker(selected, x))); if (segment != null) audioSource.SelectedItem = segment.Source; StartPlayback((int)time.TotalMilliseconds); break; } }
             };
-            var excerptTab = new TabPage("Local review"); var generate = new Button { Text = "Create overview, decisions & follow-ups (source quotes)", Dock = DockStyle.Top, Height = 34 };
+            var excerptTab = new TabPage("Local review"); var generate = new HubButton { Text = "Create overview from source quotes", Dock = DockStyle.Top, Height = 34 };
             generate.Click += (s, e) => { if (selected == null) return; lock (selected) { selected.Summary = NotesSummary.Generate(selected); store.Save(selected); excerptText.Text = selected.Summary; } };
             excerptTab.Controls.Add(excerptText); excerptTab.Controls.Add(generate); tabs.TabPages.Add(excerptTab);
-            var questions = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true }; var question = new TextBox { Width = 230, AccessibleName = "Search meeting statements" }; var ask = new Button { Text = "Find related statements", AutoSize = true };
+            var questions = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = true }; var question = new TextBox { Width = 230, AccessibleName = "Search meeting statements" }; var ask = new HubButton { Text = "Find statements", Width = 140, Height = 32 };
             Action answer = () => { if (selected != null) lock (selected) excerptText.Text = NotesSummary.Answer(selected, question.Text); };
             ask.Click += (s, e) => answer(); question.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; answer(); } }; questions.Controls.AddRange(new Control[] { question, ask }); excerptTab.Controls.Add(questions); questions.BringToFront(); generate.BringToFront();
-            var playback = new TableLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, ColumnCount = 5, RowCount = 2, Padding = new Padding(4) };
-            playback.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); for (int c = 1; c < 5; c++) playback.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            playback.RowStyles.Add(new RowStyle(SizeType.AutoSize)); playback.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            var playback = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 2, Padding = new Padding(0, 6, 0, 0), Margin = Padding.Empty };
+            playback.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); foreach (int width in new[] { 58, 58, 65, 78 }) playback.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, width));
+            playback.RowStyles.Add(new RowStyle(SizeType.Percent, 55)); playback.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
             audioSource.Dock = DockStyle.Fill; audioSource.MinimumSize = new Size(95, 0); audioSource.AccessibleName = "Playback audio source";
-            var play = new Button { Text = "Play", AutoSize = true }; var pause = new Button { Text = "Pause", AutoSize = true }; playButton = play; pausePlayback = pause;
+            var play = new HubButton { Text = "Play", Dock = DockStyle.Fill }; var pause = new HubButton { Text = "Pause", Dock = DockStyle.Fill }; playButton = play; pausePlayback = pause;
             speed.Width = 70; speed.AccessibleName = "Playback speed"; speed.Items.AddRange(new object[] { "0.75x", "1x", "1.25x", "1.5x", "2x" }); speed.SelectedIndex = 1;
             playback.Controls.Add(audioSource, 0, 0); playback.Controls.Add(play, 1, 0); playback.Controls.Add(pause, 2, 0); playback.Controls.Add(speed, 3, 0); playback.Controls.Add(playTime, 4, 0);
-            playPosition.Dock = DockStyle.Fill; playPosition.AccessibleName = "Recording position"; playback.Controls.Add(playPosition, 0, 1); playback.SetColumnSpan(playPosition, 5);
-            transcriptTab.Controls.Add(playback); playback.BringToFront();
+            playPosition.AutoSize = false; playPosition.Dock = DockStyle.Fill; playPosition.AccessibleName = "Recording position"; playback.Controls.Add(playPosition, 0, 1); playback.SetColumnSpan(playPosition, 5);
+            conversation.Controls.Add(playback, 0, 2);
             play.Click += (s, e) => StartPlayback(); pause.Click += (s, e) => { try { player.Pause(); } catch (Exception ex) { uiError = ex.Message; } };
             audioSource.SelectedIndexChanged += (s, e) => { player.Dispose(); playerOpen = false; };
             speed.SelectedIndexChanged += (s, e) => { try { if (playerOpen) player.Speed(new[] { 0.75, 1.0, 1.25, 1.5, 2.0 }[speed.SelectedIndex]); } catch (Exception ex) { uiError = "Playback speed unavailable: " + ex.Message; } };
             playPosition.MouseUp += (s, e) => StartPlayback(playPosition.Value);
             var actions = (TableLayoutPanel)export.Parent; actions.ColumnCount = 4; actions.ColumnStyles.Clear();
-            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82)); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80)); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 58));
+            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88)); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 95)); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 66));
+            actions.Controls.Remove(retry); export.Text = "Export PDF";
             var more = new HubButton { Text = "More", Dock = DockStyle.Fill }; more.Click += (s, e) => ShowFilesMenu(more); actions.Controls.Add(more, 3, 0);
             var meters = new TableLayoutPanel { Dock = DockStyle.Bottom, Height = 22, ColumnCount = 4 };
             meters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 34)); meters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); meters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70)); meters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
@@ -179,8 +198,9 @@ namespace LocalDictation
         }
         void UpdateReviewState()
         {
+            ApplyNotesView();
             emptyState.Visible = selected == null && !writingFresh;
-            sourceMeters.Visible = captureDevices.Visible = Recording; reviewWorkspace.RowStyles[3].Height = Recording ? 80 : 30;
+            sourceMeters.Visible = captureDevices.Visible = Recording; reviewWorkspace.RowStyles[3].Height = Recording ? Font.Height * 4 : Busy || !String.IsNullOrWhiteSpace(uiError) || retry.Enabled ? Font.Height + 12 : 0;
             if (Recording) { string micName = microphone.SelectedItem == null ? "Default microphone" : microphone.SelectedItem.ToString(), outputName = output.SelectedItem == null ? "Default output" : output.SelectedItem.ToString(); captureDevices.Text = (session.Document.Mode == "Computer" ? "" : "Mic: " + micName + (session.MicrophoneSound > 70 ? " (activity)" : " (quiet)")) + (session.Document.Mode == "Both" ? " | " : "") + (session.Document.Mode == "Microphone" ? "" : "Output: " + outputName + (session.ComputerSound > 70 ? " (activity)" : " (quiet)")); reviewHints.SetToolTip(captureDevices, captureDevices.Text); }
 
             if (selected != null && !Busy && audioSource.Items.Count == 0 && new[] { "Microphone", "Computer" }.Any(source => File.Exists(store.AudioPath(selected, source)))) LoadAudioSources(selected);

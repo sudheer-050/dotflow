@@ -33,8 +33,11 @@ namespace LocalDictation
         public bool NameEdited { get; set; }
         public string Mode { get; set; }
         public string Kind { get; set; }
+        public string Platform { get; set; }
+        public string TargetWindowTitle { get; set; }
         public string UserName { get; set; }
         public string WrittenNotes { get; set; }
+        public bool EditableTextInitialized { get; set; }
         public string Summary { get; set; }
         public string Tags { get; set; }
         public string DeletedUtc { get; set; }

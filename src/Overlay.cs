@@ -82,26 +82,7 @@ namespace LocalDictation
                         g.DrawEllipse(rim, 5.5f, 5.5f, 53, 53);
                     using (var highlight = new Pen(Color.FromArgb(36, 255, 255, 255), 0.8f))
                         g.DrawArc(highlight, 6.5f, 6.5f, 51, 51, 210, 120);
-                    if (mode == 1)
-                    {
-                        for (int i = 0; i < 5; i++)
-                        {
-                            float profile = 1f - Math.Abs(i - 2) * 0.2f;
-                            float motion = 0.78f + 0.22f * (float)Math.Sin(phase * 2.5f + i * 1.15f);
-                            float height = 3 + level * 23 * profile * motion;
-                            float x = 32 + (i - 2) * 5.5f;
-                            Color tint = level == 0 ? Color.FromArgb(161, 172, 186) : Color.FromArgb(174, 244, 224);
-                            using (var bar = new Pen(tint, 3.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
-                                g.DrawLine(bar, x, 32 - height / 2, x, 32 + height / 2);
-                        }
-                    }
-                    else
-                    {
-                        // A distinct stationary processing state; no pretend microphone activity.
-                        for (int i = 0; i < 3; i++)
-                        using (var dot = new SolidBrush(Color.FromArgb(151 + i * 28, 169 + i * 20, 205 + i * 15)))
-                            g.FillEllipse(dot, 21 + i * 9, 29.5f, 5, 5);
-                    }
+                    DrawSignal(g, new PointF(32, 32), mode == 1, level, phase);
                 }
                 else
                 {
@@ -115,6 +96,33 @@ namespace LocalDictation
             }
             return frame;
         }
+        internal static void DrawSignal(Graphics g, PointF center, bool recording, float level, float phase)
+        {
+            var state = g.Save();
+            g.TranslateTransform(center.X - 32, center.Y - 32);
+            if (recording)
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    float profile = 1f - Math.Abs(i - 2) * 0.2f;
+                    float motion = 0.78f + 0.22f * (float)Math.Sin(phase * 2.5f + i * 1.15f);
+                    float height = 3 + level * 23 * profile * motion;
+                    float x = 32 + (i - 2) * 5.5f;
+                    Color tint = level == 0 ? Color.FromArgb(161, 172, 186) : Color.FromArgb(174, 244, 224);
+                    using (var bar = new Pen(tint, 3.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                        g.DrawLine(bar, x, 32 - height / 2, x, 32 + height / 2);
+                }
+            }
+            else
+            {
+                // A distinct stationary processing state; no pretend microphone activity.
+                for (int i = 0; i < 3; i++)
+                using (var dot = new SolidBrush(Color.FromArgb(151 + i * 28, 169 + i * 20, 205 + i * 15)))
+                    g.FillEllipse(dot, 21 + i * 9, 29.5f, 5, 5);
+            }
+
+            g.Restore(state);
+        }
         static GraphicsPath Capsule(int width, int height)
         {
             var p = new GraphicsPath(); float d = Math.Min(32, height - 1);
@@ -125,13 +133,18 @@ namespace LocalDictation
         {
             using (var image = Snapshot(scale))
             {
+                PresentFrame(this, image);
+            }
+        }
+        internal static void PresentFrame(Form window, Bitmap image, Point? position = null)
+        {
                 IntPtr screen = GetDC(IntPtr.Zero), memory = IntPtr.Zero, bitmap = IntPtr.Zero, old = IntPtr.Zero;
                 try
                 {
                     memory = CreateCompatibleDC(screen); bitmap = image.GetHbitmap(Color.FromArgb(0)); old = SelectObject(memory, bitmap);
-                    var target = new Point(Location.X, Location.Y); var source = new Point(); var size = image.Size;
+                    var target = position ?? window.Location; var source = new Point(); var size = image.Size;
                     var blend = new Blend { Alpha = 255, Format = 1 };
-                    if (!UpdateLayeredWindow(Handle, screen, ref target, ref size, memory, ref source, 0, ref blend, 2))
+                    if (!UpdateLayeredWindow(window.Handle, screen, ref target, ref size, memory, ref source, 0, ref blend, 2))
                         throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
                 }
                 finally
@@ -141,7 +154,6 @@ namespace LocalDictation
                     if (memory != IntPtr.Zero) DeleteDC(memory);
                     if (screen != IntPtr.Zero) ReleaseDC(IntPtr.Zero, screen);
                 }
-            }
         }
         static float MonitorScale(Point point)
         {

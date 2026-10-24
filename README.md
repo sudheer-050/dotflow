@@ -18,7 +18,7 @@ Private voice typing, personal notes and meeting transcripts for Windows. Hold y
 
 Writing and remembering a conversation are different jobs. Notewll brings both into a small desktop app: dictate into a text field, capture a thought without keeping the main window open, or save a meeting with the original conversation separate from your own notes.
 
-The project started with a shortcut-driven dictation tool and grew into a native Windows application with an edge toolbar, selectable audio sources, local playback, and view-oriented PDF exports. Speech runs on your computer after the first setup download. No Docker, Python installation, cloud API key or account is needed to use the app.
+The project started with a shortcut-driven dictation tool and grew into a native Windows application with an edge toolbar, selectable audio sources, local playback, and view-oriented PDF exports. The single-file installer includes the standard English speech engine and model; speech runs on your computer without an installation download. No Docker, Python installation, cloud API key or account is needed to use the app.
 
 ## Three ways to capture
 
@@ -50,23 +50,29 @@ Original conversations are read-only inside Notewll. An exported PDF is a copy: 
 
 ### Stay out of the way
 
-A slim edge toolbar reveals icons on hover, with names on each icon. Drag it to any screen edge; orientation follows the edge. Use Light, Dark or System theme, reduced motion, optional recording animation, permanent hide or a one-hour snooze. Shortcuts are configurable, and notes use a toggle rather than requiring you to keep a key held.
+Click the compact floating ball to reveal a half-circle of action icons. Each icon sits on a translucent white round tile. Drag and release the ball to throw it: gravity, bouncing and rolling friction bring it to rest at the bottom edge.
+
+Preferences > Ball offers sports and planet skins, plain Color or Gradient appearances, live color-range previews, and nine independent gravity environments. Closed and expanded sizes have separate percentage sliders; icon tiles scale with the expanded size. Add an image from a local folder to rotate with the ball. Gravity choices automatically demonstrate a sample bounce. Reduced motion, optional recording animation, permanent hiding and one-hour snoozing remain available.
 
 ## Get started
 
-1. **Get the source** from this repository, or check [GitHub Releases](https://github.com/sudheer-050/notewll/releases) for available installer assets. Version 0.8.1 is a local validation candidate; check Releases for the last published installer.
-2. **Build the installer** on Windows if you are using the source:
+1. **Download the installer** from [GitHub Releases](https://github.com/sudheer-050/notewll/releases). Choose **Notewll-Setup.exe** when the new offline package is published. This package is currently prepared locally; publication is pending.
+2. Double-click **Notewll-Setup.exe**, click **Install**, then **Open app**. Developers using the source can build it on Windows:
 
    ```powershell
    .\scripts\build_setup.ps1
    ```
 
-3. Run `dist/Notewll-Setup-0.8.1.exe`. It is a small bootstrapper, not the entire installed package. First installation needs internet for the pinned native runtime and approximately 40 MB English speech model; setup verifies hashes and tests model loading.
-4. Open Notewll, complete the microphone and Practice checks, then confirm that dictation appears in another app. Speech can run offline afterwards.
+3. Share or run `dist/Notewll-Setup.exe` (about 56 MB). This single installer includes the app, standard offline English speech runtime and model, Start menu shortcut and uninstaller. Click Install; no internet, Python or setup scripts are required. Setup verifies the included archives and tests model loading.
+4. Open Notewll, complete the microphone check and try dictation on Home, then confirm that dictation appears in another app. Speech can run offline afterwards.
 
 **Requirements:** Windows 10/11 x64, .NET Framework 4.8, microphone permission for microphone capture, and an output device for system audio. No macOS, Android or iOS build is supplied. The preview installer is unsigned; there is no configured signed automatic-update feed. Review the source and release hashes before choosing to install it.
 
 For terminal input, select Auto, Ctrl+Shift+V or Shift+Insert in Writing preferences as appropriate for your terminal. Notewll does not send Enter. Held modifier combinations can delay live insertion until release.
+
+### Updates
+
+Download the newest installer from [GitHub Releases](https://github.com/sudheer-050/notewll/releases) and run it again. Setup preserves your notes, recordings and preferences. About > Check for updates opens GitHub Releases when no signed update feed is configured. Automatic download and installation require a configured trusted publisher certificate and HTTPS update feed.
 
 ## How it works
 
@@ -93,7 +99,7 @@ flowchart LR
 
 ## Your data stays on your device
 
-- Speech recognition uses local model files. Setup downloads components; update checks are optional.
+- Speech recognition uses local model files. The installer includes standard speech components; update checks are optional.
 - Dictation audio stays in memory. The latest failed dictation may be retried, copied or discarded; recovery ends when the app exits.
 - Notes deliberately save audio and text under `%LOCALAPPDATA%\LocalDictation\Notes`. Internal names are preserved for upgrade compatibility.
 - Recording computer output captures all apps using the selected output device. Choose the device used by your call and use headphones to reduce duplicated audio. Record only with the appropriate participants' consent.

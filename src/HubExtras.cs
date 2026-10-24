@@ -9,14 +9,13 @@ namespace LocalDictation
     sealed partial class SettingsForm
     {
         readonly ListBox recentNotes = new ListBox { BorderStyle = BorderStyle.None, DisplayMember = "Title", Font = new Font("Segoe UI", 9), IntegralHeight = false };
-        TabControl settingsTabs;
+        AppTabs settingsTabs;
         Label readinessStatus;
         readonly ComboBox writingStyle = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
         HubButton recoverButton;
         Label toolbarStatus;
         public void SetToolbarStatus(string value) { if (toolbarStatus != null) toolbarStatus.Text = "Toolbar: " + value; }
         public void SetRecoveryAvailable(bool available) { if (recoverButton != null) recoverButton.Visible = available; }
-        readonly ComboBox themeChoice = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
         readonly CheckBox toolbarChoice = new CheckBox { Text = "Show the edge toolbar", AutoSize = true };
         readonly CheckBox indicatorChoice = new CheckBox { Text = "Show the separate voice animation while recording", AutoSize = true };
         readonly CheckBox motionChoice = new CheckBox { Text = "Reduce motion", AutoSize = true };
@@ -52,7 +51,7 @@ namespace LocalDictation
             updateUrl.TextChanged += (s, e) => MarkDirty(); updatePublisher.TextChanged += (s, e) => MarkDirty();
             updateOnStart.CheckedChanged += (s, e) => MarkDirty(); writingStyle.SelectedIndexChanged += (s, e) => { MarkDirty(); RefreshCleaned(); };
             foreach (var box in new[] { quality, accurateMode, cleanup, autoPaste, liveWriting, startup, toolbarChoice, indicatorChoice, motionChoice, noiseChoice }) box.CheckedChanged += (s, e) => MarkDirty();
-            foreach (var box in new[] { mic, noteShortcut, noteSource, meetingSource, pasteMethod, themeChoice }) box.SelectedIndexChanged += (s, e) => MarkDirty();
+            foreach (var box in new[] { mic, noteShortcut, noteSource, meetingSource, pasteMethod }) box.SelectedIndexChanged += (s, e) => MarkDirty();
         }
         bool ConfirmUnsaved()
         {
@@ -62,11 +61,12 @@ namespace LocalDictation
             if (result == DialogResult.Yes) { SavePreferences(); return !dirty; }
             selectedShortcut = source.Hotkey; hotkey.Text = selectedShortcut;
             quality.Checked = source.QualityEnabled; accurateMode.Checked = source.AccurateDictationEnabled; cleanup.Checked = source.CleanupEnabled; autoPaste.Checked = source.AutoPaste; liveWriting.Checked = source.LiveWriting; startup.Checked = source.StartWithWindows;
-            toolbarChoice.Checked = source.ShowToolbar; indicatorChoice.Checked = source.ShowVoiceIndicator; motionChoice.Checked = source.ReducedMotion; noiseChoice.Checked = source.ReduceNoise; themeChoice.SelectedItem = source.Theme; writingStyle.SelectedItem = source.WritingStyle;
+            toolbarChoice.Checked = source.ShowToolbar; indicatorChoice.Checked = source.ShowVoiceIndicator; motionChoice.Checked = source.ReducedMotion; noiseChoice.Checked = source.ReduceNoise; writingStyle.SelectedItem = source.WritingStyle;
             noteShortcut.SelectedItem = source.NotesHotkey; noteSource.SelectedIndex = Array.IndexOf(new[] { "Microphone", "Computer", "Both" }, source.NotesSource); meetingSource.SelectedIndex = Array.IndexOf(new[] { "Microphone", "Computer", "Both" }, source.MeetingSource);
             mic.SelectedIndex = Math.Max(0, mic.Items.IndexOf(source.Microphone)); pasteMethod.SelectedIndex = Array.IndexOf(new[] { "Auto", "CtrlV", "CtrlShiftV", "ShiftInsert" }, source.PasteMethod);
             updateUrl.Text = source.UpdateManifestUrl; updatePublisher.Text = source.UpdatePublisherThumbprint;
             updateOnStart.Checked = source.CheckUpdatesOnStart;
+            LoadBallChoices(source);
             pendingRules = source.Copy().Personalization; dirty = false; savePinned.Text = "Save preferences"; return true;
         }
         Panel SettingsTab(string name)
@@ -105,11 +105,10 @@ namespace LocalDictation
             Label(noteSettings, "Meeting audio", 20, 220, 620, 28, 11, true, Ink); Setting(noteSettings, meetingSource, 258); Setting(noteSettings, noiseChoice, 324);
             Label(noteSettings, "The shortcut toggles personal notes. Start meetings from Home or the hover toolbar.\nNoise suppression reduces quiet sound; it does not guarantee removal of music or every background voice.", 20, 376, 620, 74, 9, false, Muted);
             var appearance = SettingsTab("App");
-            themeChoice.Items.AddRange(new object[] { "System", "Light", "Dark" }); themeChoice.SelectedItem = source.Theme; writingStyle.SelectedItem = source.WritingStyle;
-            Label(appearance, "Appearance", 20, 20, 620, 28, 11, true, Ink); Setting(appearance, themeChoice, 58);
             toolbarChoice.Checked = source.ShowToolbar; indicatorChoice.Checked = source.ShowVoiceIndicator; motionChoice.Checked = source.ReducedMotion; noiseChoice.Checked = source.ReduceNoise;
-            toolbarStatus = Label(appearance, "Toolbar: " + (source.ShowToolbar ? "Ready on the screen edge" : "Hidden in preferences"), 20, 408, 620, 44, 9, false, Muted); Setting(appearance, toolbarChoice, 124); Setting(appearance, indicatorChoice, 170); Setting(appearance, motionChoice, 216); Setting(appearance, startup, 262);
-            Label(appearance, "The toolbar docks along any edge. Hover reveals icons; hover over an icon for its name.\nKeyboard users can open the Windows tray action menu without changing the target text field.", 20, 324, 620, 76, 10, false, Muted);
+            toolbarStatus = Label(appearance, "Toolbar: " + (source.ShowToolbar ? "Ready on the screen edge" : "Hidden in preferences"), 20, 324, 620, 44, 9, false, Muted); Setting(appearance, toolbarChoice, 40); Setting(appearance, indicatorChoice, 86); Setting(appearance, motionChoice, 132); Setting(appearance, startup, 178);
+            Label(appearance, "Click the ball to reveal its icons. Drag and release it to drop it to the bottom edge.\nKeyboard users can open the Windows tray action menu without changing the target text field.", 20, 240, 620, 76, 10, false, Muted);
+            BuildBallPreferences();
             var storage = SettingsTab("Storage");
             Label(storage, "Keep control of your local data", 20, 20, 620, 32, 14, true, Ink);
             Label(storage, "Recordings, deleted notes and download cache use disk space.\nBack up notes before moving them. Conversation exports can include private annotations.\nSpeech and notes stay on this PC; no account or cloud subscription is required.", 20, 78, 620, 110, 10, false, Muted);
@@ -119,7 +118,7 @@ namespace LocalDictation
             Label(about, "Windows x64 | English | Vosk small-en-us 0.15\nOffline speech after one-time installation.\n\nThis release adds speech recovery, organized settings, richer notes,\nplayback, scoped exports, storage recovery, dictionary and snippets.\n\nConversation text is read-only in the app. External document protections\nare convenience restrictions, not proof that a copy was never changed.", 20, 82, 630, 220, 10, false, Muted);
             Button(about, "Open release notes", 20, 336, 220, (s, e) => ShowReleaseNotes());
             Button(about, "Check for updates", 260, 336, 220, async (s, e) => await ReleaseUpdates.Check(this, source));
-            var updateInfo = String.IsNullOrWhiteSpace(source.UpdateManifestUrl) || String.IsNullOrWhiteSpace(source.UpdatePublisherThumbprint) ? "This preview has no signed update feed. Use a trusted full installer to update." : "Signed updates are available from this publisher. Downloads are verified before installation.";
+            var updateInfo = String.IsNullOrWhiteSpace(source.UpdateManifestUrl) || String.IsNullOrWhiteSpace(source.UpdatePublisherThumbprint) ? "Check for updates opens GitHub Releases. Run the latest installer to update; your notes and preferences are kept." : "Signed updates are available from this publisher. Downloads are verified before installation.";
             Label(about, updateInfo, 20, 398, 620, 70, 10, false, Muted);
             Setting(about, updateOnStart, 482); updateOnStart.Checked = source.CheckUpdatesOnStart; updateOnStart.Enabled = !String.IsNullOrWhiteSpace(source.UpdateManifestUrl) && !String.IsNullOrWhiteSpace(source.UpdatePublisherThumbprint);
             updateUrl.Text = source.UpdateManifestUrl; updatePublisher.Text = source.UpdatePublisherThumbprint;
@@ -132,7 +131,7 @@ namespace LocalDictation
         }
         void RememberCorrection()
         {
-            var entry = PersonalRule.Prompt(this, new PersonalRule { Kind = "Word", Trigger = raw.SelectedText, Replacement = "" }, source.Theme);
+            var entry = PersonalRule.Prompt(this, new PersonalRule { Kind = "Word", Trigger = raw.SelectedText, Replacement = "" }, source.Theme, source);
             if (entry == null) return;
             try { var proposed = pendingRules.Where(rule => !rule.Trigger.Equals(entry.Trigger, StringComparison.OrdinalIgnoreCase)).Concat(new[] { entry }).ToList(); PersonalRule.Validate(proposed); pendingRules = proposed; ShowPage("Preferences"); SelectSettingsCategory("Writing"); MarkDirty(); saved.Text = "Correction added. Save preferences to use it."; } catch (Exception ex) { MessageBox.Show(this, ex.Message, "Could not remember correction"); }
         }
@@ -165,7 +164,7 @@ namespace LocalDictation
                 var status = DialogUi.Text("1. Voice files: " + (available ? "Ready - English, offline" : detail) + "\r\n\r\n2. Microphone: " + (source.SetupMicrophoneVerified ? "Input activity verified" : "Not tested yet") + "\r\n\r\n3. Practice sentence: " + (source.SetupSpeechVerified ? "Recognized successfully" : "Not verified yet") + "\r\n\r\n4. Other-app typing: " + (source.SetupInsertionConfirmed ? "Confirmed by you" : "Not confirmed yet")); flow.Controls.Add(status);
                 flow.Controls.Add(DialogUi.Button("Microphone permissions", (s, e) => OpenPermissionSettings()));
                 flow.Controls.Add(DialogUi.Button("Choose microphone", (s, e) => { dialog.Close(); ShowPage("Preferences"); SelectSettingsCategory("Recording"); }));
-                flow.Controls.Add(DialogUi.Button("Practice a sentence", (s, e) => { dialog.Close(); ShowPage("Playground"); }));
+                flow.Controls.Add(DialogUi.Button("Try dictation on Home", (s, e) => { dialog.Close(); ShowPage("Playground"); }));
                 flow.Controls.Add(DialogUi.Text("For the last step, click a text field in Notepad or your browser, hold your dictation key, speak and release. Check that the text appears correctly."));
                 var confirm = DialogUi.Button("I tested typing in another app", (s, e) => { source.SetupInsertionConfirmed = true; if (CloseToTray) source.Save(); dialog.Close(); }, true); confirm.Enabled = source.SetupSpeechVerified; flow.Controls.Add(confirm);
                 flow.Controls.Add(DialogUi.Button("Do this later", (s, e) => dialog.Close()));

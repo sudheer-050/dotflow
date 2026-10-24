@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -69,13 +70,26 @@ namespace LocalDictation
         public bool ShowVoiceIndicator { get; set; }
         public bool ReduceNoise { get; set; }
         public bool ReducedMotion { get; set; }
+        public string BallAppearance { get; set; }
+        public string BallGravity { get; set; }
+        public string BallColorMode { get; set; }
+        public string BallColor1 { get; set; }
+        public string BallColor2 { get; set; }
+        public int BallGradientAngle { get; set; }
+        public int BallSizePercent { get; set; }
+        public int BallExpandedSizePercent { get; set; }
+        public string BallImagePath { get; set; }
         public string NoteMicrophoneId { get; set; }
         public string NoteOutputId { get; set; }
         public int DeletedRetentionDays { get; set; }
+        public int TypingWordsPerMinute { get; set; }
         public List<PersonalRule> Personalization { get; set; }
-        public Config Copy() { var json = new JavaScriptSerializer(); return json.Deserialize<Config>(json.Serialize(this)); }
+        public Config Copy() { var json = new JavaScriptSerializer(); var copy = json.Deserialize<Config>(json.Serialize(this)); if (Personalization != null) copy.Personalization = Personalization.Select(rule => rule.Copy()).ToList(); return copy; }
         public Config()
         {
+            BallSizePercent=100; BallExpandedSizePercent=100; BallImagePath="";
+            BallAppearance="Moon"; BallGravity="Earth"; BallColorMode="Original colors"; BallColor1="#B9C1CB"; BallColor2="#F2F0D9"; BallGradientAngle=45;
+            TypingWordsPerMinute = 40;
             QualityPython = ""; QualityEnabled = false;
             NotesSort = "Newest"; ExportFormat = "PDF"; WritingStyle = "Standard";
             UpdateManifestUrl = UpdatePublisherThumbprint = ""; Theme = "System"; ShowToolbar = true; ShowVoiceIndicator = false; ReduceNoise = true; ReducedMotion = false; NoteMicrophoneId = NoteOutputId = ""; Personalization = new List<PersonalRule>();
@@ -122,6 +136,14 @@ namespace LocalDictation
 
         public void Validate()
         {
+            BallColorMode=BallAppearance=="Color" ? "Solid color" : BallAppearance=="Gradient" ? "Gradient" : "Original colors"; // Legacy field: appearance now determines the finish.
+            if(!Regex.IsMatch(BallColor1??"","^#[0-9a-fA-F]{6}$") || !Regex.IsMatch(BallColor2??"","^#[0-9a-fA-F]{6}$")) throw new InvalidDataException("Choose valid ball colors.");
+            if(BallGradientAngle<0 || BallGradientAngle>359) throw new InvalidDataException("Choose a gradient angle from 0 to 359 degrees.");
+            if(Array.IndexOf(BallCatalog.Appearances,BallAppearance)<0) throw new InvalidDataException("Choose a valid ball appearance.");
+            if(BallExpandedSizePercent<100 || BallExpandedSizePercent>200) throw new InvalidDataException("Choose an expanded ball size from 100% to 200%.");
+            if(BallSizePercent<BallCatalog.MinSizePercent(BallAppearance) || BallSizePercent>BallCatalog.MaxSizePercent(BallAppearance)) throw new InvalidDataException("Choose a ball size within the slider range.");
+            if(BallImagePath==null) BallImagePath="";
+            if(Array.IndexOf(BallCatalog.Gravities,BallGravity)<0) throw new InvalidDataException("Choose a valid ball gravity.");
             if ((QualityEnabled || AccurateDictationEnabled) && !File.Exists(QualityPython)) throw new InvalidDataException("Run scripts/setup_accuracy.ps1 to prepare the local speech environment before enabling it.");
             Hotkey = Shortcut.Format(Shortcut.Parse(Hotkey));
             NotesHotkey = Shortcut.Format(Shortcut.Parse(NotesHotkey));
@@ -129,7 +151,8 @@ namespace LocalDictation
             if (Array.IndexOf(new[] { "Newest", "Oldest", "Title", "Longest" }, NotesSort) < 0) throw new InvalidDataException("Choose a valid note sort order.");
             if (Array.IndexOf(new[] { "PDF", "Word", "Excel", "CSV" }, ExportFormat) < 0) throw new InvalidDataException("Choose a valid export format.");
             if (Array.IndexOf(new[] { "Standard", "Chat", "Email", "Code" }, WritingStyle) < 0) throw new InvalidDataException("Choose a valid writing style.");
-            if (Array.IndexOf(new[] { "System", "Light", "Dark" }, Theme) < 0) throw new InvalidDataException("Choose a valid appearance.");
+            if (TypingWordsPerMinute < 10 || TypingWordsPerMinute > 250) throw new InvalidDataException("Choose a typing speed from 10 to 250 words per minute.");
+            Theme = "System"; // Migrate saved appearances to the fixed application palette.
             if (DeletedRetentionDays < 0 || DeletedRetentionDays > 3650) throw new InvalidDataException("Choose a valid retention period.");
             Uri updateUri; if (!String.IsNullOrWhiteSpace(UpdateManifestUrl) && (!Uri.TryCreate(UpdateManifestUrl, UriKind.Absolute, out updateUri) || updateUri.Scheme != "https")) throw new InvalidDataException("Update feeds must use HTTPS.");
             if (!String.IsNullOrWhiteSpace(UpdatePublisherThumbprint) && !Regex.IsMatch(UpdatePublisherThumbprint.Replace(" ", ""), "^[A-Fa-f0-9]{40}$")) throw new InvalidDataException("Use the 40-character Windows certificate thumbprint.");
@@ -146,7 +169,9 @@ namespace LocalDictation
         {
             Validate();
             Directory.CreateDirectory(DirectoryPath);
+            foreach (var rule in Personalization) Pronunciations.Commit(rule);
             File.WriteAllText(FilePath, new JavaScriptSerializer().Serialize(this));
+            foreach (var rule in Personalization) rule.PronunciationPcm = null;
         }
     }
 

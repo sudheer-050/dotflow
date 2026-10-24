@@ -2,9 +2,13 @@
 
 ## Install and start
 
-Run `dist/Notewll-Setup-0.8.1.exe`. First installation downloads the English model/runtime and needs internet; speech later works offline. Exit the old app if requested. Setup reports successful installation separately and offers Open app. Start opens the hub; closing it leaves the app running. Exit in the Windows system tray quits it.
+Run `dist/Notewll-Setup.exe` and click Install. This single file includes the application and standard English speech model/runtime; installation and standard speech work offline. No Python or command-line setup is needed. Exit the old app if requested. Setup reports successful installation separately and offers Open app. Start opens the hub; closing it leaves the app running. Exit in the Windows system tray quits it.
 
 Home offers Dictate, New note, Record meeting and recent work. First-run guidance includes permission and practice steps. Preferences > Recording has microphone testing, Check speech engine and setup repair.
+
+## Updates
+
+Download the latest installer from [GitHub Releases](https://github.com/sudheer-050/notewll/releases) and run it again; setup preserves existing notes, recordings and preferences. About > Check for updates opens that page when a signed update feed is not configured. Automatic updates require a trusted publisher certificate and update feed.
 
 ## Write into other applications
 
@@ -18,11 +22,19 @@ Accurate local dictation is an optional preference under Writing. Run `scripts/s
 
 The local model warms before accurate recording is enabled. Readiness is shown in the app and toolbar status, and cancel does not block behind an in-flight inference. Silence and rejected noise end without a warning or clipboard change. Speech detection can still miss quiet/short speech or accept some real-world noise; the finite synthetic controls do not establish perfect detection. One longer test replay took about two seconds after release, so a one-second response is not guaranteed.
 
-Writing preferences select cleanup/verbatim, live writing, terminal paste and local dictionary/snippets. Windows Terminal commonly uses Ctrl+Shift+V; classic consoles use Shift+Insert. No Enter is added. Windows can block insertion into an administrator window. Playground previews cleanup and can transcribe a PCM 16 kHz mono WAV.
+Writing preferences select cleanup/verbatim, live writing, terminal paste and local dictionary/snippets. Windows Terminal commonly uses Ctrl+Shift+V; classic consoles use Shift+Insert. No Enter is added. Windows can block insertion into an administrator window. Home > Try dictation opens the optional inline microphone/recognition test. It previews cleanup and can transcribe a PCM 16 kHz mono WAV. Practice is collapsed by default and does not appear as a separate navigation section or add entries to history.
+
+## Dictionary and snippets
+
+Dictionary > Add word now records your pronunciation instead of asking you to type a recognition mistake. Press Record pronunciation, say the word or name, then Stop (five seconds maximum). Review the read-only Heard result, enter Correct spelling, and choose Use word. Listen replays the sample; Record again replaces the draft. Save preferences activates the correction and stores the WAV locally in the Pronunciations folder beside config.json. Cancelling leaves the active entry unchanged and does not write draft audio.
+
+The current local recognizer transcribes the recording. Dictionary pairs that recognized text with your correct spelling; saved Word spellings also supply hints to the optional enhanced recognizer. This does not retrain the speech model or perform acoustic voice matching. Existing text-based word entries keep working; editing one asks for a pronunciation recording. JSON rule exports contain correction rules, not the separate pronunciation WAV files.
+
+Snippets still use a typed trigger and saved expansion, such as saying "my signature" to insert a full sign-off. Snippets do not become speech-recognition hints.
 
 ## Edge toolbar
 
-Hover the slim bar to reveal icons; hover each icon for its name. Dictate starts writing in the current field; its active control stops/refines and Cancel discards. Personal note/Meeting start recordings; activate again to stop/save. Open app shows the hub.
+Hover the slim bar to reveal three vector icons: Dictation, Personal notes, and Meetings/conversations. Hover an icon for its name. Dictation writes in the current field; activate again to stop/refine. While processing, its icon cancels the transcription; Escape also cancels. Personal note/Meeting start recordings; activate again to stop/save. Open Notewll from the Windows tray when you need the full application.
 
 Drag the bar/grip and release to snap to the nearest edge. Side edges use a vertical bar; top/bottom use a horizontal bar. Position is remembered. App preferences control visibility, separate voice animation, reduced motion, theme and startup. The Windows system tray offers one-hour hide, Show toolbar and a keyboard action menu.
 
@@ -48,7 +60,7 @@ Uninstall through Windows Installed apps. Data is retained by default. Downloade
 
 ## Troubleshooting
 
-- Missing engine: Check speech engine, then rerun full Setup; initial downloads need internet.
+- Missing engine: Check speech engine, then rerun full Setup; the full installer includes the standard speech files.
 - Missing microphone: select the input, check its meter and Windows microphone permission for desktop apps.
 - Missing call output: choose the actual device used by the call; capture includes all apps using it.
 - Soft speech missing/noise transcribed: try disabling quiet-noise suppression and improve microphone placement. The small English model may misrecognize names.
@@ -60,3 +72,19 @@ This release is Windows x64. Real microphone, meeting, playback and cross-app op
 
 
 Version 0.7.0 adds explicit Standard, Chat, Email and Code writing styles, a searchable Words & snippets editor, and user-controlled Record/Stop on Practice. Closing recording-device selection without Apply cancels changes. Setup records successful microphone and recognition checks, then asks you to confirm typing into another app. Conversations remain read-only; titles, participant labels and personal notes can be edited separately.
+
+
+## Floating ball and customization
+
+Click the ball to open its half-circle action menu. The three icons control dictation, personal notes and meeting notes. Drag and release the ball to throw it; it falls, bounces and settles at the bottom edge. Reduce motion in Preferences > App to skip the movement.
+
+In Preferences > Ball:
+
+- Choose a sports-ball or planet appearance. Color and Gradient are plain appearances; their color controls appear only when selected.
+- Pick colors from the continuous color range or enter a hex color. The picker previews both the ball and expanded tray before you confirm.
+- Choose a gravity environment to play a sample drop and bounce automatically. Use Drop preview to replay it. Appearance and gravity are independent; planet skins use cricket-ball properties.
+- Ball size shows percentages, with 100% preserving the selected appearance's original size. Its limits approximate 0.5-2.5 cm using display scaling; exact physical measurements depend on the screen. Expanded ball size independently ranges from 100% to 200%, including its icon tiles.
+- Choose local image opens a file browser for PNG, JPEG, BMP or GIF images. The app keeps a normalized local copy, centers it inside the ball, and rotates it with the surface. Remove image removes the overlay without deleting the original file. GIFs use a still frame.
+- Apply saves the choices; Reset ball defaults restores the default moon, Earth gravity, default sizes and no custom image.
+
+To verify this feature from a source checkout, run `scripts/build.ps1`, then `build/LocalDictation.exe --ball-preferences-smoke output/ball-preferences`. Additional focused checks are under `verification/verify_ball_physics.ps1` and `verification/verify_tray_*.ps1`.

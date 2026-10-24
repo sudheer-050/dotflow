@@ -37,6 +37,10 @@ namespace LocalDictation
             {
                 switch (args[0])
                 {
+                    case "--ball-preferences-smoke":
+                        BallVerification.Run(args[1]); return 0;
+                    case "--pronunciation-smoke":
+                        VoiceDictionaryVerification.Run(args[1], args.Length > 2 ? args[2] : null); return 0;
                     case "--personalization-smoke":
                         {
                             var config = new Config();
@@ -95,6 +99,8 @@ namespace LocalDictation
                             finally { SpeechQuality.Shutdown(); AccurateSpeech.Shutdown(); }
                             return 0;
                         }
+                    case "--history-smoke":
+                        HistoryVerification.Run(args[1]); return 0;
                     case "--ux-smoke":
                         UxVerification.Run(args[1]); return 0;
                     case "--format-text":
@@ -115,42 +121,53 @@ namespace LocalDictation
                             Application.EnableVisualStyles();
                             using (var toolbar = new FloatingDock())
                             {
-                                int writes = 0, notes = 0, meetings = 0;
-                                toolbar.ToggleWrite = () => writes++; toolbar.ToggleNote = () => notes++; toolbar.ToggleMeeting = () => meetings++;
+                                int writes = 0, notes = 0, meetings = 0, cancellations = 0;
+                                ((System.Windows.Forms.Timer)typeof(FloatingDock).GetField("hover", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(toolbar)).Stop();
+                                toolbar.CancelWrite = () => cancellations++; toolbar.Configure(true); toolbar.ToggleWrite = () => writes++; toolbar.ToggleNote = () => notes++; toolbar.ToggleMeeting = () => meetings++;
                                 IntPtr foreground = Native.GetForegroundWindow(); toolbar.RestorePosition(Int32.MinValue, Int32.MinValue); toolbar.Show(); Application.DoEvents();
                                 if (Native.GetForegroundWindow() != foreground) throw new Exception("Toolbar took focus.");
-                                if (Math.Max(toolbar.Width, toolbar.Height) >= 120 || Math.Min(toolbar.Width, toolbar.Height) >= 40) throw new Exception("Resting toolbar is too large.");
-                                if (args[0] == "--toolbar-preview") CaptureHub(toolbar, System.IO.Path.ChangeExtension(args[1], ".collapsed.png"));
-                                toolbar.SetExpanded(true); Application.DoEvents();
-                                foreach (var button in toolbar.Controls.OfType<Button>().Where(b => b.AccessibleName != "Open Notewll"))
+                                if (Math.Max(toolbar.Width, toolbar.Height) >= 120 || Math.Min(toolbar.Width, toolbar.Height) > 80) throw new Exception("Resting toolbar is too large.");
+                                if (args[0] == "--toolbar-preview") CaptureDock(toolbar, System.IO.Path.ChangeExtension(args[1], ".collapsed.png"));
+                                toolbar.SetExpanded(true, true); Application.DoEvents();
+                                foreach (var button in toolbar.Controls.OfType<DockButton>().Where(b => b.AccessibleName != "Open Notewll"))
                                 {
                                     IntPtr point = (IntPtr)((button.Height / 2 << 16) | button.Width / 2);
                                     Native.SendMessage(button.Handle, 0x201, (IntPtr)1, point); Native.SendMessage(button.Handle, 0x202, IntPtr.Zero, point); Application.DoEvents();
                                 }
                                 if (Native.GetForegroundWindow() != foreground) throw new Exception("Clicking the toolbar took focus.");
                                 if (writes != 1 || notes != 1 || meetings != 1) throw new Exception("Toolbar actions are not separate.");
+                                if (toolbar.Controls.OfType<DockButton>().Count() != 3 || toolbar.Controls.OfType<DockButton>().Any(button => button.AccessibleName == "Open Notewll")) throw new Exception("Toolbar still has an Open app button");
+                                toolbar.UpdateState(false, true, false, false, false, "Processing");
+                                var cancelPoint = new IntPtr((toolbar.Height / 2 << 16) | toolbar.Width / 2); Native.SendMessage(toolbar.Handle, 0x201, new IntPtr(1), cancelPoint); Native.SendMessage(toolbar.Handle, 0x202, IntPtr.Zero, cancelPoint); if (cancellations != 1 || writes != 1) throw new Exception("Processing cancellation is unavailable without the fourth button");
+                                toolbar.UpdateState(false, false, false, false, false, "Ready");
                                 var area = Screen.FromControl(toolbar).WorkingArea;
                                 foreach (var point in new[] { area.Location, new System.Drawing.Point(area.Right - 1, area.Top), new System.Drawing.Point(area.Left, area.Bottom - 1), new System.Drawing.Point(area.Right - 1, area.Bottom - 1), new System.Drawing.Point(area.Left, area.Top + area.Height / 2), new System.Drawing.Point(area.Right - 1, area.Top + area.Height / 2), new System.Drawing.Point(area.Left + area.Width / 2, area.Top), new System.Drawing.Point(area.Left + area.Width / 2, area.Bottom - 1) })
                                 {
-                                    toolbar.SetExpanded(false); toolbar.RestorePosition(point.X, point.Y);
-                                    System.Drawing.Point expected; using (var g = toolbar.CreateGraphics()) expected = FloatingDock.EdgePosition(point, area, toolbar.Size, (int)Math.Round(3 * g.DpiX / 96f));
-                                    if (toolbar.Location != expected) throw new Exception("Toolbar did not dock to the nearest edge.");
+                                    toolbar.SetExpanded(false, true); toolbar.RestorePosition(point.X, point.Y);
                                     bool side = point.Y == area.Top + area.Height / 2;
-                                    if (side && toolbar.Height <= toolbar.Width) throw new Exception("Side toolbar must be vertical.");
-                                    toolbar.SetExpanded(true);
-                                    if (side && toolbar.Height <= toolbar.Width) throw new Exception("Side controls must be vertical.");
+                                    if (toolbar.Width != toolbar.Height) throw new Exception("Resting toolbar must be a full circle.");
+                                    toolbar.SetExpanded(true, true);
+                                    if (Math.Abs(Math.Max(toolbar.Height, toolbar.Width) - 2 * Math.Min(toolbar.Height, toolbar.Width)) > 1) throw new Exception("Expanded toolbar must be a half circle.");
                                     if (!area.Contains(toolbar.Bounds)) throw new Exception("Expanded toolbar leaves the screen.");
                                 }
                                 if (args[0] == "--toolbar-preview")
                                 {
-                                    Action<string> capture = path => { for (int frame = 0; frame < 3; frame++) { Application.DoEvents(); toolbar.Refresh(); foreach (Control child in toolbar.Controls) child.Refresh(); Thread.Sleep(20); } CaptureHub(toolbar, path); };
-                                    toolbar.SetExpanded(true); capture(args[1]);
+                                    Action<string> capture = path => { for (int frame = 0; frame < 3; frame++) { Application.DoEvents(); toolbar.Refresh(); foreach (Control child in toolbar.Controls) child.Refresh(); Thread.Sleep(20); } CaptureDock(toolbar, path); };
+                                    toolbar.SetExpanded(true, true); capture(args[1]);
                                     toolbar.UpdateState(false, false, true, true, true, "Recording meeting 02:18"); capture(System.IO.Path.ChangeExtension(args[1], ".recording.png"));
-                                    toolbar.RestorePosition(area.Left, area.Top + area.Height / 2); toolbar.SetExpanded(false); capture(System.IO.Path.ChangeExtension(args[1], ".left-idle.png"));
-                                    toolbar.SetExpanded(true); capture(System.IO.Path.ChangeExtension(args[1], ".left.png"));
-                                    toolbar.RestorePosition(area.Right - 1, area.Top + area.Height / 2); toolbar.SetExpanded(true); capture(System.IO.Path.ChangeExtension(args[1], ".right.png"));
+                                    toolbar.RestorePosition(area.Left, area.Top + area.Height / 2); toolbar.SetExpanded(false, true); capture(System.IO.Path.ChangeExtension(args[1], ".left-idle.png"));
+                                    toolbar.SetExpanded(true, true); capture(System.IO.Path.ChangeExtension(args[1], ".left.png"));
+                                    toolbar.RestorePosition(area.Right - 1, area.Top + area.Height / 2); toolbar.SetExpanded(true, true); capture(System.IO.Path.ChangeExtension(args[1], ".right.png"));
                                 }
 
+                                toolbar.UpdateState(false, false, false, false, false, "Ready");
+                                var dpiField = typeof(FloatingDock).GetField("dpi", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                                foreach (float scale in new[] { 1f, 1.75f, 2f })
+                                {
+                                    dpiField.SetValue(toolbar, scale); toolbar.RestorePosition(area.Left + area.Width / 2, area.Bottom - 1); toolbar.SetExpanded(true, true);
+                                    foreach (var button in toolbar.Controls.OfType<DockButton>()) if (button.Left < 0 || button.Top < 0 || button.Right > toolbar.ClientSize.Width || button.Bottom > toolbar.ClientSize.Height) throw new Exception("Toolbar button clipped at " + scale + " DPI scale");
+                                    if (args[0] == "--toolbar-preview") CaptureDock(toolbar, System.IO.Path.ChangeExtension(args[1], ".dpi-" + (int)(scale * 100) + ".png"));
+                                }
                                 toolbar.Close(); Console.Write("toolbar-ok|buttons=3|no-focus-steal|edge-snap"); return 0;
                             }
                         }
@@ -257,6 +274,8 @@ namespace LocalDictation
                             var restored = new NoteStore(System.IO.Path.Combine(args[1], "restored")); if (NotesData.Restore(restored, backup) != 1 || NotesData.Restore(restored, backup) != 0) throw new Exception("Backup restore lost data or overwrote identifiers.");
                             string original = NoteStore.Transcript(note); note.Summary = NotesSummary.Generate(note); if (!note.Summary.Contains("send the report tomorrow") || original != NoteStore.Transcript(note)) throw new Exception("Excerpts changed the conversation.");
                             var config = new Config(); config.Theme = "Dark"; config.Personalization.Add(new PersonalRule { Kind = "Word", Trigger = "sue deer", Replacement = "Sudheer" }); config.Personalization.Add(new PersonalRule { Kind = "Snippet", Trigger = "my sign off", Replacement = "Thanks,\nSudheer" }); config.Validate();
+                            if (config.Theme != "System") throw new Exception("Legacy appearance was not migrated.");
+                            ThemeColors.Mode = "Dark"; if (ThemeColors.Mode != "System") throw new Exception("Application theme must remain fixed.");
                             if (PersonalRule.Apply(config.Copy(), "hello sue deer my sign off") != "hello Sudheer Thanks,\nSudheer") throw new Exception("Dictionary or snippets failed.");
                             string rules = System.IO.Path.Combine(args[1], "rules.json"); NotesData.WriteRules(rules, config.Personalization); if (NotesData.ReadRules(rules).Count != 2) throw new Exception("Rule import/export failed.");
                             Application.EnableVisualStyles();
@@ -275,7 +294,7 @@ namespace LocalDictation
                             System.IO.Directory.CreateDirectory(args[1]); var store = new NoteStore(System.IO.Path.Combine(args[1], "sample-notes"));
                             var note = store.Create("Product planning", "Both", "Sudheer"); note.Kind = "Meeting"; note.Status = "Saved"; note.WrittenNotes = "Prepare a demo by Friday."; note.Segments.Add(new NoteSegment { Source = "Computer", Complete = true, RawText = "We should make the controls easier to find.", Text = "We should make the controls easier to find.", Frames = 64000 }); store.Save(note);
                             Application.EnableVisualStyles();
-                            foreach (var theme in new[] { "Light", "Dark" }) using (var hub = new SettingsForm(new Config { Theme = theme }, "", "", store))
+                            foreach (var theme in new[] { "System" }) using (var hub = new SettingsForm(new Config { Theme = theme }, "", "", store))
                             {
                                 hub.Show(); Application.DoEvents(); hub.Size = hub.MinimumSize;
                                 foreach (var page in new[] { "Home", "Notes", "Playground", "Help" }) { hub.ShowPage(page); if (page == "Notes") hub.Notes.SelectNote(note.Id); hub.Refresh(); Application.DoEvents(); if (page == "Notes") hub.Notes.VerifyReviewLayout(); CaptureHub(hub, System.IO.Path.Combine(args[1], theme + "-" + page + ".png")); }
@@ -391,6 +410,12 @@ namespace LocalDictation
                             string detail; var cfg = args.Length > 1 ? new Config { SttUrl = args[1] } : Config.Load();
                             bool ok = SpeechEngine.Healthy(cfg, out detail); Console.Write((ok ? "healthy" : "down") + "|" + detail); return ok ? 0 : 4;
                         }
+                    case "--installed-speech-check":
+                    {
+                        string problem = SpeechEngine.EnsureRunning(new Config(), 60);
+                        Console.Write(problem ?? "speech-ready|offline=true");
+                        return problem == null ? 0 : 4;
+                    }
                     case "--ensure-stt":
                         {
                             string problem = SpeechEngine.EnsureRunning(Config.Load(), 150, m => Console.Error.WriteLine(m));
@@ -417,7 +442,7 @@ namespace LocalDictation
                             using (var f = new SettingsForm(new Config(), "", "", new NoteStore(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "preview-notes"))))
                             {
                                 f.Show(); Application.DoEvents();
-                                foreach (var page in new[] { "Home", "Notes", "Playground", "Preferences", "Help" })
+                                foreach (var page in new[] { "Home", "Notes", "Dictionary", "Snippets", "Style", "Preferences", "Help" })
                                 {
                                     f.Controls.OfType<Panel>().SelectMany(p => p.Controls.OfType<Button>()).Single(b => b.AccessibleName == page).PerformClick();
                                     f.Refresh(); Application.DoEvents();
@@ -438,7 +463,7 @@ namespace LocalDictation
                                 f.CloseToTray = true; f.Close(); Application.DoEvents();
                                 if (f.Visible || f.IsDisposed) throw new InvalidOperationException("Close-to-tray failed");
                                 f.CloseToTray = false;
-                                Console.Write("hub-ok|pages=5|preferences=applied|preview=working|close=tray");
+                                Console.Write("hub-ok|pages=7|preferences=applied|preview=working|close=tray");
                             }
                             return 0;
                         }
@@ -453,6 +478,11 @@ namespace LocalDictation
             foreach (Control c in parent.Controls) { if (!c.Visible) continue; Console.WriteLine(indent + c.GetType().Name + " " + c.Bounds + " client=" + c.ClientSize + " " + (c.Text.Length < 30 ? c.Text : "")); DumpControls(c, indent + " "); }
         }
         static void RefreshPreview(Control control) { control.Refresh(); foreach (Control child in control.Controls) if (child.Visible) RefreshPreview(child); }
+        static void CaptureDock(Form form, string path)
+        {
+            Application.DoEvents();
+            using (var bitmap = new System.Drawing.Bitmap(form.Width, form.Height)) { form.DrawToBitmap(bitmap, new System.Drawing.Rectangle(System.Drawing.Point.Empty, form.Size)); bitmap.Save(path); }
+        }
         static void CaptureHub(Form form, string path)
         {
             Application.DoEvents(); RefreshPreview(form); Application.DoEvents(); RefreshPreview(form);
